@@ -22,6 +22,7 @@ import { formatSnPhone, isSnMobile } from '../../utils/validators';
 import { shareText } from '../../utils/share';
 import { deviceSince, deviceSummary, type DeviceSummary } from '../../utils/device';
 import { notificationStatus, requestNotifications } from '../../utils/notify';
+import { isIOS } from '../../utils/platform';
 import { ACCOUNT_LIMIT, INVITE_URL, PRO_PRICE, REFERRAL_BONUS, SUPPORT, referralCode } from '../../data/company';
 import { Sheet } from '../common/Sheet';
 import { Button, Field, IconBox, List, ReviewView, Row, SectionTitle, Segmented, SuccessView } from '../ui';
@@ -430,11 +431,11 @@ export const SettingsSheet: React.FC = () => {
           </div>
           <List>
             <Row title="Connecté depuis" trailing={<span className="text-[15px] text-neutral-500">{new Date(deviceSince()).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>} />
-            <Row title="Déverrouillage" trailing={<span className="text-[15px] text-neutral-500">{isBiometricsEnabled ? 'Code ou empreinte' : 'Code PIN'}</span>} />
+            <Row title="Déverrouillage" trailing={<span className="text-[15px] text-neutral-500">{isBiometricsEnabled ? `Code ou ${isIOS() ? 'Face ID' : 'empreinte'}` : 'Code PIN'}</span>} />
             <Row title="Version de Payzed" trailing={<span className="text-[15px] text-neutral-500">{__APP_VERSION__}</span>} />
             <Row
               title="Notifications"
-              subtitle={notif === 'granted' ? 'Son du téléphone, comme un SMS' : notif === 'unsupported' ? "Dans l'application Android" : 'Désactivées'}
+              subtitle={notif === 'granted' ? 'Son du téléphone, comme un SMS' : notif === 'unsupported' ? "Dans l'application mobile" : 'Désactivées'}
               trailing={
                 notif === 'granted' ? (
                   <span className="text-[15px] font-semibold">Activées</span>
@@ -444,7 +445,7 @@ export const SettingsSheet: React.FC = () => {
                     onClick={async () => {
                       const ok = await requestNotifications();
                       setNotif(await notificationStatus());
-                      if (!ok) showToast('Autorisez Payzed dans Réglages Android › Notifications');
+                      if (!ok) showToast(isIOS() ? 'Autorisez Payzed dans Réglages › Payzed › Notifications' : 'Autorisez Payzed dans Réglages Android › Notifications');
                     }}
                   >
                     Activer

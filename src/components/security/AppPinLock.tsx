@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Delete, Fingerprint } from 'lucide-react';
+import { Delete, Fingerprint, ScanFace } from 'lucide-react';
+import { biometricName, isIOS } from '../../utils/platform';
 import { useBanking } from '../../context/BankingContext';
 import { haptic } from '../../utils/haptics';
 import { BACK_PRIORITY, leaveApp, useBackHandler } from '../../utils/backStack';
@@ -96,8 +97,12 @@ export const AppPinLock: React.FC = () => {
           </button>
         ))}
         {isBiometricsEnabled ? (
-          <button type="button" onClick={biometrics} aria-label="Empreinte digitale" className={key}>
-            <Fingerprint className={`w-8 h-8 ${scanning ? 'animate-pulse' : ''}`} />
+          <button type="button" onClick={biometrics} aria-label={biometricName()} className={key}>
+            {isIOS() ? (
+              <ScanFace className={`w-8 h-8 ${scanning ? 'animate-pulse' : ''}`} />
+            ) : (
+              <Fingerprint className={`w-8 h-8 ${scanning ? 'animate-pulse' : ''}`} />
+            )}
           </button>
         ) : (
           <span />

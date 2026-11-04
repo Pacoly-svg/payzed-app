@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+    <script>
+      // iPhone : plein écran (encoche et barre d'accueil gérées par env(safe-area-inset-*)),
+      // sans zoom automatique quand on touche un champ (le zoom à deux doigts reste possible).
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        document
+          .querySelector('meta[name=viewport]')
+          .setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover');
+      }
+    </script>
     <title>Payzed</title>
     <meta name="description" content="Payzed — banque mobile simple" />
     <meta name="theme-color" content="#ffffff" />

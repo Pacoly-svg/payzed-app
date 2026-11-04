@@ -1,5 +1,23 @@
 # Audit Payzed
 
+## Version 1.10.0 — version iPhone
+
+- **Plateforme iOS** ajoutée (Capacitor 8, Swift Package Manager) : même code et mêmes écrans qu'Android.
+- **Compilation** sur un Mac de GitHub à chaque envoi : `Payzed-v1.10.0-iOS.ipa` publié sur la même page que l'APK.
+  Fichier non signé : installation avec Sideloadly (voir `docs/IOS.md`) ; TestFlight / App Store nécessitent un
+  compte Apple Developer.
+- **Adaptations iPhone** : plein écran avec encoche et barre d'accueil respectées, pas de zoom automatique sur les
+  champs, pas de rebond de la page, clavier qui réduit la fenêtre (plugin clavier embarqué **uniquement** sur iPhone,
+  Android inchangé), Face ID à la place de l'empreinte, mode clair forcé, portrait, icône et écran de lancement
+  Payzed (symbole blanc sur noir).
+- **Permissions iPhone** : appareil photo (scanner un QR), enregistrement des reçus dans Photos, lien `payzed://`.
+- **Notifications** : la création du canal (Android uniquement) n'est plus appelée sur iPhone, où elle aurait
+  empêché toute notification ; bannière et son aussi quand l'app est ouverte.
+- Tests : toutes les suites repassent (Android inchangé) ; vérification iPhone émulé (plein écran, Face ID, Réglages).
+  À valider sur un vrai iPhone.
+
+---
+
 ## Version 1.9.0
 
 ### Réglages (engrenage en haut à gauche)

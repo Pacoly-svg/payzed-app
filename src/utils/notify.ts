@@ -14,6 +14,8 @@ async function setup(): Promise<boolean> {
   let perm = await LocalNotifications.checkPermissions();
   if (perm.display !== 'granted') perm = await LocalNotifications.requestPermissions();
   if (perm.display !== 'granted') return false;
+  // iPhone : pas de canal, le son et la bannière sont gérés par iOS
+  if (Capacitor.getPlatform() !== 'android') return true;
   // Importance maximale : bandeau en haut de l'écran + son et vibration du téléphone
   await LocalNotifications.createChannel({
     id: CHANNEL,
@@ -99,7 +101,7 @@ export async function cancelNotification(key: string) {
 
 /** Alarmes exactes autorisées ? (sinon Android peut décaler une notification programmée de quelques minutes) */
 export async function exactAlarmsAllowed(): Promise<boolean | null> {
-  if (!Capacitor.isNativePlatform()) return null;
+  if (Capacitor.getPlatform() !== 'android') return null;
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
     const r = await LocalNotifications.checkExactNotificationSetting();

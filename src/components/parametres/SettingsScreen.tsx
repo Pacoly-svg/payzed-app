@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, ChevronRight, Fingerprint, FlaskConical, KeyRound, Presentation, RotateCcw } from 'lucide-react';
+import { Camera, ChevronRight, Fingerprint, FlaskConical, KeyRound, Presentation, RotateCcw, ScanFace } from 'lucide-react';
+import { biometricName, isIOS } from '../../utils/platform';
 import { useBanking } from '../../context/BankingContext';
 import { Sheet } from '../common/Sheet';
 import { DemoSheet } from './DemoSheet';
@@ -120,10 +121,10 @@ export const SettingsScreen: React.FC = () => {
         <SectionTitle>Sécurité</SectionTitle>
         <List>
           <Row
-            icon={<IconBox><Fingerprint className="w-5 h-5" /></IconBox>}
-            title="Empreinte digitale"
+            icon={<IconBox>{isIOS() ? <ScanFace className="w-5 h-5" /> : <Fingerprint className="w-5 h-5" />}</IconBox>}
+            title={biometricName()}
             subtitle="Déverrouiller sans code"
-            trailing={<Toggle on={isBiometricsEnabled} onChange={toggleBiometrics} label="Empreinte digitale" />}
+            trailing={<Toggle on={isBiometricsEnabled} onChange={toggleBiometrics} label={biometricName()} />}
           />
           <Row
             onClick={() => setSheet('pin')}

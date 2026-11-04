@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK + iOS
 
 on:
   push:
@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   build:
+    name: Android (APK)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -67,5 +68,70 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: Payzed v${{ env.VERSION }}${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && '' || ' (test)' }}
           files: Payzed-v*.apk
+          prerelease: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
+          make_latest: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && 'true' || 'false' }}
+
+  # iPhone : compilation sur un Mac de GitHub (gratuit pour un dépôt public).
+  # L'app n'est pas signée : à installer avec Sideloadly / AltStore (identifiant Apple),
+  # ou à signer plus tard avec un compte Apple Developer pour TestFlight / App Store.
+  ios:
+    name: iOS (IPA non signée)
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Choisir la dernière version stable de Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Compiler l'application web
+        run: npm run build
+
+      - name: Synchroniser Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Compiler l'app iPhone (sans signature)
+        run: |
+          set -o pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath ios/build \
+            MARKETING_VERSION="${VERSION}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | grep -E "error:|warning: .*deprecated|BUILD (SUCCEEDED|FAILED)" || true
+          test -d ios/build/Build/Products/Release-iphoneos/App.app
+
+      - name: Créer l'IPA
+        run: |
+          mkdir -p Payload
+          cp -R ios/build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry "Payzed-v${VERSION}-iOS.ipa" Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Payzed-iOS
+          path: Payzed-v*-iOS.ipa
+
+      # Même page de téléchargement que l'APK (même numéro de build)
+      - name: Publier sur la page Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}-build${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Payzed v${{ env.VERSION }}${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && '' || ' (test)' }}
+          files: Payzed-v*-iOS.ipa
           prerelease: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
           make_latest: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && 'true' || 'false' }}
