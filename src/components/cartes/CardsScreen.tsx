@@ -62,7 +62,7 @@ const CardVisual: React.FC<{
         <div className={`${face} flex flex-col p-[6.5%]`}>
           <div className="card-glare" />
           <div className="flex items-start justify-between">
-            <img src="/assets/logo/logo-principal-blanc.svg" alt="Payzed" className="h-[1.6rem] w-auto" style={{ height: '7.5cqw' }} />
+            <img src={`${import.meta.env.BASE_URL}assets/logo/logo-principal-blanc.svg`} alt="Payzed" className="h-[1.6rem] w-auto" style={{ height: '7.5cqw' }} />
             <span className="font-bold tracking-[0.18em] text-white/70" style={{ fontSize: '2.9cqw' }}>
               DEBIT
             </span>
@@ -90,7 +90,7 @@ const CardVisual: React.FC<{
                 {card.cardholderName}
               </p>
             </div>
-            <img src="/logos/visa-white.svg" alt="Visa" className="shrink-0 -my-[3%]" style={{ width: '19cqw', height: '19cqw' }} />
+            <img src={`${import.meta.env.BASE_URL}logos/visa-white.svg`} alt="Visa" className="shrink-0 -my-[3%]" style={{ width: '19cqw', height: '19cqw' }} />
           </div>
         </div>
 

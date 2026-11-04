@@ -84,14 +84,16 @@ export const CATEGORIES: Category[] = [
   { id: 'subscriptions', label: 'Abonnements', group: 'Abonnements', icon: 'Repeat', action: 'subscription' },
 ];
 
-const T = '/logos/tiles';
+/** Racine des fichiers publics (« / » dans l'app, « /payzed-app/ » sur le web). */
+const BASE = import.meta.env.BASE_URL;
+const T = `${BASE}logos/tiles`;
 
 export const OPERATORS: Operator[] = [
-  { id: 'payzed', name: 'Payzed', logo: '/assets/logo/symbole-blanc.svg', source: 'payzed' },
+  { id: 'payzed', name: 'Payzed', logo: `${BASE}assets/logo/symbole-blanc.svg`, source: 'payzed' },
   // Télécoms & Mobile Money
   { id: 'wave', name: 'Wave', logo: `${T}/wave.png`, source: 'projet' },
-  { id: 'orange', name: 'Orange', logo: '/logos/orange.svg', source: 'projet' },
-  { id: 'yas', name: 'Yas', logo: '/logos/yas.svg', fit: 'contain', source: 'projet' },
+  { id: 'orange', name: 'Orange', logo: `${BASE}logos/orange.svg`, source: 'projet' },
+  { id: 'yas', name: 'Yas', logo: `${BASE}logos/yas.svg`, fit: 'contain', source: 'projet' },
   { id: 'expresso', name: 'Expresso', logo: `${T}/expresso.png`, source: 'projet' },
   { id: 'wizall', name: 'Wizall', logo: `${T}/wizall.png`, source: 'fourni' },
   // Banques
@@ -104,25 +106,25 @@ export const OPERATORS: Operator[] = [
   { id: 'westernunion', name: 'Western Union', logo: `${T}/westernunion.svg`, source: 'simple-icons' },
   { id: 'moneygram', name: 'MoneyGram', logo: `${T}/moneygram.svg`, source: 'simple-icons' },
   { id: 'ria', name: 'Ria', logo: `${T}/ria.png`, source: 'fourni' },
-  { id: 'paypal', name: 'PayPal', logo: '/logos/paypal_icon.svg', fit: 'contain', source: 'projet' },
+  { id: 'paypal', name: 'PayPal', logo: `${BASE}logos/paypal_icon.svg`, fit: 'contain', source: 'projet' },
   // Énergie, eau, péage, État, assurance
   { id: 'senelec', name: 'Senelec', logo: `${T}/senelec.png`, source: 'projet' },
   { id: 'seneau', name: "Sen'Eau", logo: `${T}/seneau.png`, source: 'projet' },
   { id: 'secaa', name: 'SECAA (Eiffage)', logo: `${T}/rapido.png`, source: 'projet' },
   { id: 'dgid', name: 'DGID', logo: `${T}/dgid.png`, source: 'projet' },
-  { id: 'axa', name: 'AXA', logo: '/logos/axa.svg', source: 'projet' },
+  { id: 'axa', name: 'AXA', logo: `${BASE}logos/axa.svg`, source: 'projet' },
   // TV
   { id: 'canalplus', name: 'Canal+', logo: `${T}/canalplus.png`, source: 'fourni' },
   { id: 'startimes', name: 'StarTimes', logo: `${T}/startimes.png`, source: 'fourni' },
   // Abonnements numériques
-  { id: 'netflix', name: 'Netflix', logo: '/logos/netflix_icon.svg', source: 'projet' },
-  { id: 'spotify', name: 'Spotify', logo: '/logos/spotify.svg', source: 'projet' },
+  { id: 'netflix', name: 'Netflix', logo: `${BASE}logos/netflix_icon.svg`, source: 'projet' },
+  { id: 'spotify', name: 'Spotify', logo: `${BASE}logos/spotify.svg`, source: 'projet' },
   { id: 'youtube', name: 'YouTube', logo: `${T}/youtube.svg`, source: 'simple-icons' },
   { id: 'deezer', name: 'Deezer', logo: `${T}/deezer.svg`, source: 'simple-icons' },
   { id: 'apple', name: 'Apple', logo: `${T}/applemusic.svg`, source: 'simple-icons' },
-  { id: 'openai', name: 'OpenAI', logo: '/logos/chatgpt_icon.svg', source: 'projet' },
-  { id: 'anthropic', name: 'Anthropic', logo: '/logos/claude.svg', source: 'projet' },
-  { id: 'google', name: 'Google', logo: '/logos/gemini.svg', source: 'projet' },
+  { id: 'openai', name: 'OpenAI', logo: `${BASE}logos/chatgpt_icon.svg`, source: 'projet' },
+  { id: 'anthropic', name: 'Anthropic', logo: `${BASE}logos/claude.svg`, source: 'projet' },
+  { id: 'google', name: 'Google', logo: `${BASE}logos/gemini.svg`, source: 'projet' },
 ];
 
 export const SERVICES: Service[] = [

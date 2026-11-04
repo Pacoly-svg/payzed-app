@@ -135,3 +135,39 @@ jobs:
           files: Payzed-v*-iOS.ipa
           prerelease: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
           make_latest: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && 'true' || 'false' }}
+
+  # iPhone sans signature Apple : web app à ajouter à l'écran d'accueil depuis Safari.
+  # Publiée sur https://pacoly-svg.github.io/payzed-app/ (branche gh-pages).
+  web:
+    name: Web app iPhone (GitHub Pages)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Compiler la web app
+        env:
+          PAYZED_BASE: /payzed-app/
+        run: |
+          npm run build
+          touch dist/.nojekyll
+
+      - name: Publier sur GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          force_orphan: true
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: Web app Payzed

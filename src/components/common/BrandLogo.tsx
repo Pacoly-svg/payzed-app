@@ -46,7 +46,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ brand, className = '', siz
   if (key.toLowerCase() === 'payzed') {
     return (
       <span className={`${tile} bg-black ${className}`} style={{ ...box, padding: Math.round(size * 0.22) }} title="Payzed">
-        <img src="/assets/logo/symbole-blanc.svg" alt="Payzed" className="w-full h-full object-contain" />
+        <img src={`${import.meta.env.BASE_URL}assets/logo/symbole-blanc.svg`} alt="Payzed" className="w-full h-full object-contain" />
       </span>
     );
   }

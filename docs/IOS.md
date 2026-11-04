@@ -4,7 +4,19 @@ La même application (même code, mêmes écrans) est compilée pour iPhone avec
 Chaque envoi sur GitHub produit, sur la page **Releases**, l'APK Android **et** le fichier iPhone
 `Payzed-vX.Y.Z-iOS.ipa` (compilé sur un Mac de GitHub, gratuit car le dépôt est public).
 
-## Installer sur un iPhone sans compte développeur (depuis Windows)
+## Le plus simple : la web app (aucun compte, aucun câble)
+
+Un iPhone refuse d'installer un fichier `.ipa` qui n'est pas signé pour lui (message « Cette app ne peut
+pas être installée car son intégrité n'a pas pu être vérifiée »). La web app contourne ce problème :
+
+1. Sur l'iPhone, ouvrir **https://pacoly-svg.github.io/payzed-app/** dans **Safari**.
+2. Toucher le bouton **Partager** (carré avec une flèche), puis **Sur l'écran d'accueil** › Ajouter.
+3. Ouvrir Payzed depuis son icône : plein écran, sans barre Safari, comme une app.
+
+Mise à jour automatique à chaque nouvelle version. Les données restent sur le téléphone.
+Limites : pas de notification quand l'app est fermée, pas de lien `payzed://`.
+
+## Installer le fichier iPhone (.ipa) depuis un PC Windows
 
 Le fichier `.ipa` n'est pas signé : Apple n'autorise l'installation qu'après signature avec un
 identifiant Apple. L'outil gratuit **Sideloadly** s'en charge :

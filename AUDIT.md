@@ -1,5 +1,19 @@
 # Audit Payzed
 
+## Version 1.10.1 — iPhone sans signature Apple
+
+- **Constat :** l'IPA non signée est refusée par l'iPhone (« son intégrité n'a pas pu être vérifiée ») : règle
+  d'Apple, toute app doit être signée pour l'appareil (Sideloadly depuis un PC, ou compte Apple Developer).
+- **Solution immédiate :** web app publiée à chaque envoi sur GitHub Pages
+  (https://pacoly-svg.github.io/payzed-app/), à ajouter à l'écran d'accueil depuis Safari : plein écran, icône
+  Payzed, données sur le téléphone. Bandeau d'aide « Installer Payzed sur l'iPhone » dans Safari (masquable,
+  absent une fois installée).
+- Chemins des images relatifs à la base (`/` dans les apps, `/payzed-app/` sur le web) ; manifeste en chemins
+  relatifs ; balises web app iPhone.
+- Test : web app servie sous `/payzed-app/` en iPhone émulé, aucune image ni ressource manquante, aucune erreur.
+
+---
+
 ## Version 1.10.0 — version iPhone
 
 - **Plateforme iOS** ajoutée (Capacitor 8, Swift Package Manager) : même code et mêmes écrans qu'Android.

@@ -6,18 +6,18 @@ import React from 'react';
  * emoji natif du téléphone pour tout autre caractère (repli automatique).
  */
 const EMOJI_IMAGES: Record<string, string> = {
-  '🎯': '/emojis/target.png',
-  '🏢': '/emojis/building.png',
-  '🛡️': '/emojis/shield.png',
-  '🛡': '/emojis/shield.png',
-  '✈️': '/emojis/airplane.png',
-  '✈': '/emojis/airplane.png',
-  '🚗': '/emojis/car.png',
-  '💍': '/emojis/ring.png',
-  '💰': '/emojis/money.png',
-  '🏠': '/emojis/house.png',
-  '🌴': '/emojis/island.png',
-  '🔒': '/emojis/lock.png',
+  '🎯': `${import.meta.env.BASE_URL}emojis/target.png`,
+  '🏢': `${import.meta.env.BASE_URL}emojis/building.png`,
+  '🛡️': `${import.meta.env.BASE_URL}emojis/shield.png`,
+  '🛡': `${import.meta.env.BASE_URL}emojis/shield.png`,
+  '✈️': `${import.meta.env.BASE_URL}emojis/airplane.png`,
+  '✈': `${import.meta.env.BASE_URL}emojis/airplane.png`,
+  '🚗': `${import.meta.env.BASE_URL}emojis/car.png`,
+  '💍': `${import.meta.env.BASE_URL}emojis/ring.png`,
+  '💰': `${import.meta.env.BASE_URL}emojis/money.png`,
+  '🏠': `${import.meta.env.BASE_URL}emojis/house.png`,
+  '🌴': `${import.meta.env.BASE_URL}emojis/island.png`,
+  '🔒': `${import.meta.env.BASE_URL}emojis/lock.png`,
 };
 
 export const POPULAR_VAULT_EMOJIS = ['🎯', '🏢', '🛡️', '✈️', '🚗', '💍', '💰', '🏠', '🌴', '🔒'];

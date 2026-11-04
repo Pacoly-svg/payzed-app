@@ -5,6 +5,8 @@ import pkg from './package.json' with { type: 'json' }
 
 // https://vite.dev/config/
 export default defineConfig({
+  // « / » pour Android et iPhone (Capacitor) ; « /payzed-app/ » pour la web app publiée sur GitHub Pages
+  base: process.env.PAYZED_BASE || '/',
   plugins: [tailwindcss(), react()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
