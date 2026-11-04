@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/web-Cy6Z-TIb.js","assets/dist-BoEKmx_y.js","assets/rolldown-runtime-XKyaHtl9.js"])))=>i.map(i=>d[i]);
+import{a as e}from"./dist-BoEKmx_y.js";import{t}from"./preload-helper-DCY-juvc.js";var n=e(`Device`,{web:()=>t(()=>import(`./web-Cy6Z-TIb.js`).then(e=>new e.DeviceWeb),__vite__mapDeps([0,1,2]))});export{n as Device};

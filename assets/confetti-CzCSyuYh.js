@@ -1,0 +1,1 @@
+import{w as e}from"./index-BHtD_4BX.js";var t=()=>{e.success()};export{t};

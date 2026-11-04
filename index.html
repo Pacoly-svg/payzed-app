@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+    <script>
+      // iPhone : plein écran (encoche et barre d'accueil gérées par env(safe-area-inset-*)),
+      // sans zoom automatique quand on touche un champ (le zoom à deux doigts reste possible).
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        document
+          .querySelector('meta[name=viewport]')
+          .setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover');
+      }
+    </script>
+    <title>Payzed</title>
+    <meta name="description" content="Payzed — banque mobile simple" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="color-scheme" content="light only" />
+    <meta name="format-detection" content="telephone=no" />
+    <!-- iPhone : « Sur l'écran d'accueil » ouvre Payzed en plein écran, comme une app -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Payzed" />
+    <link rel="icon" type="image/svg+xml" href="/payzed-app/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/payzed-app/favicon-32x32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/payzed-app/apple-touch-icon.png" />
+    <link rel="manifest" href="/payzed-app/manifest.json" />
+    <script type="module" crossorigin src="/payzed-app/assets/index-BHtD_4BX.js"></script>
+    <link rel="modulepreload" crossorigin href="/payzed-app/assets/rolldown-runtime-XKyaHtl9.js">
+    <link rel="modulepreload" crossorigin href="/payzed-app/assets/ui-BnRW2cDd.js">
+    <link rel="modulepreload" crossorigin href="/payzed-app/assets/dist-BoEKmx_y.js">
+    <link rel="modulepreload" crossorigin href="/payzed-app/assets/preload-helper-DCY-juvc.js">
+    <link rel="stylesheet" crossorigin href="/payzed-app/assets/index-CRZJOJMP.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
