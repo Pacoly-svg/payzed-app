@@ -54,6 +54,8 @@ export interface Transaction {
   locationCity?: string;
   locationCoords?: { lat: number; lng: number };
   isArchived?: boolean;
+  /** Opération créée depuis le mode démo (présentations). */
+  isSimulated?: boolean;
 }
 
 export interface UserProfile {

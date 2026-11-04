@@ -51,6 +51,18 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ brand, className = 'w-10 h
 
   const normalized = (brand || '').toLowerCase().trim();
 
+  if (normalized === 'payzed') {
+    return (
+      <div
+        className={`rounded-2xl flex items-center justify-center overflow-hidden shrink-0 bg-black ${className}`}
+        style={{ width: size, height: size, padding: Math.round(size * 0.22) }}
+        title="Payzed"
+      >
+        <img src="/assets/logo/symbole-blanc.svg" alt="Payzed" className="w-full h-full object-contain" />
+      </div>
+    );
+  }
+
   // 1. Logos avec fichiers officiels téléchargés
   let src = '';
   let alt = '';

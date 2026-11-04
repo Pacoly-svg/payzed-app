@@ -30,6 +30,7 @@ export const TransactionDetailsModal: React.FC = () => {
     [tx.amount > 0 ? 'De' : 'À', tx.amount > 0 ? tx.sender : tx.recipient],
     ['Moyen', tx.paymentMethod],
     ['Frais', tx.fee ? formatCurrency(tx.fee, tx.currency) : 'Gratuit'],
+    ...(tx.isSimulated ? ([['Type', 'Opération simulée']] as [string, string][]) : []),
   ];
 
   return (

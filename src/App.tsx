@@ -7,6 +7,8 @@ import { Toast } from './components/common/Toast';
 import { ComptesScreen } from './components/comptes/ComptesScreen';
 import { AppPinLock } from './components/security/AppPinLock';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { NotificationBanner } from './components/common/NotificationBanner';
+import { DemoProvider } from './context/DemoContext';
 
 // Écrans et fenêtres chargés à la demande : démarrage plus rapide.
 const StatsScreen = lazy(() => import('./components/statistiques/StatsScreen').then((m) => ({ default: m.StatsScreen })));
@@ -22,6 +24,7 @@ const VaultsModal = lazy(() => import('./components/modals/VaultsModal').then((m
 
 const MODALS = {
   qr: QRCodeModal,
+  scan: QRCodeModal,
   transfer: TransferModal,
   subscriptions: SubscriptionsModal,
   bills: BillsModal,
@@ -63,6 +66,7 @@ const PayzedApp: React.FC = () => {
       </ErrorBoundary>
 
       {isLocked && <AppPinLock />}
+      <NotificationBanner />
       <Toast />
     </>
   );
@@ -72,7 +76,9 @@ export default function App() {
   return (
     <ErrorBoundary fullScreen>
       <BankingProvider>
-        <PayzedApp />
+        <DemoProvider>
+          <PayzedApp />
+        </DemoProvider>
       </BankingProvider>
     </ErrorBoundary>
   );

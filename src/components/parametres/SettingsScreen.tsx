@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, ChevronRight, Fingerprint, KeyRound, Lock, RotateCcw } from 'lucide-react';
+import { Camera, ChevronRight, Fingerprint, KeyRound, Lock, Presentation, RotateCcw } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { Sheet } from '../common/Sheet';
+import { DemoSheet } from './DemoSheet';
 import { Button, Field, IconBox, List, PageTitle, Row, SectionTitle, Toggle } from '../ui';
 
 const initialsOf = (name: string) =>
@@ -35,7 +36,7 @@ export const SettingsScreen: React.FC = () => {
   const { user, updateUser, lockApp, isBiometricsEnabled, toggleBiometrics, resetToDemoDefaults, showToast } = useBanking();
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone);
-  const [sheet, setSheet] = useState<'pin' | 'reset' | null>(null);
+  const [sheet, setSheet] = useState<'pin' | 'reset' | 'demo' | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Resynchroniser si le profil change ailleurs (réinitialisation)
@@ -133,10 +134,17 @@ export const SettingsScreen: React.FC = () => {
         </List>
       </section>
 
-      {/* Données */}
+      {/* Données & présentation */}
       <section className="space-y-3">
-        <SectionTitle>Données</SectionTitle>
+        <SectionTitle>Présentation & données</SectionTitle>
         <List>
+          <Row
+            onClick={() => setSheet('demo')}
+            icon={<IconBox><Presentation className="w-5 h-5" /></IconBox>}
+            title="Simulations"
+            subtitle="Entrées, sorties et solde"
+            trailing={<ChevronRight className="w-5 h-5 text-neutral-400" />}
+          />
           <Row
             onClick={() => setSheet('reset')}
             icon={<IconBox className="text-red-600"><RotateCcw className="w-5 h-5" /></IconBox>}
@@ -149,6 +157,7 @@ export const SettingsScreen: React.FC = () => {
       <p className="text-center text-[13px] text-neutral-400 pb-2">Payzed · version {__APP_VERSION__}</p>
 
       {sheet === 'pin' && <PinSheet onClose={() => setSheet(null)} />}
+      {sheet === 'demo' && <DemoSheet onClose={() => setSheet(null)} />}
       {sheet === 'reset' && (
         <Sheet title="Réinitialiser ?" onClose={() => setSheet(null)}>
           <p className="text-[15px] text-neutral-600">

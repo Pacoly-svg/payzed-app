@@ -1,5 +1,14 @@
 # Audit Payzed
 
+## Version 1.3.0
+
+| Demande | Réalisation |
+|---|---|
+| Simulations pour les présentations | Profil → **Simulations** : entrée ou sortie d'argent (Payzed, Wave, Orange Money, Mixx by Yas, PayPal, Ecobank), nom, numéro, montant, arrivée directe / 10 s / 30 s / 1 min avec compte à rebours annulable, notification animée avec son et vibration, réglage du solde. Le détail de chaque opération simulée indique « Opération simulée ». |
+| QR code dans les deux sens | **Payer** : la caméra scanne le QR d'une autre personne puis on saisit le montant (bouton scan en haut de l'écran et dans « Envoyer »). **Recevoir** : mon QR code + Copier / Partager. |
+| Saisie de texte | Mécanisme clavier de la 1.2 conservé (champ toujours visible au-dessus du clavier). |
+
+
 ## Version 1.2.0
 
 | Retour | Correction |

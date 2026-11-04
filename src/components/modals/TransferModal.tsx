@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ScanLine } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
@@ -75,6 +76,9 @@ export const TransferModal: React.FC = () => {
   return (
     <Sheet title="Envoyer de l'argent" onClose={close}>
       <form onSubmit={submit} className="space-y-5">
+        <Button variant="secondary" className="w-full" icon={<ScanLine className="w-5 h-5" />} onClick={() => setActiveModal('scan')}>
+          Scanner un QR code
+        </Button>
         <div>
           <p className="text-[13px] font-semibold text-neutral-500 mb-2 px-1">Contacts récents</p>
           <div className="flex gap-4 overflow-x-auto no-scrollbar -mx-5 px-5">

@@ -18,7 +18,7 @@ import {
 } from '../data/initialData';
 import { formatTransactionDate } from '../utils/formatters';
 
-export type ModalType = 'qr' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'vaults' | null;
+export type ModalType = 'qr' | 'scan' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'vaults' | null;
 
 type NewTransaction = Omit<Transaction, 'id' | 'timestamp' | 'date' | 'reference' | 'currency'> & {
   currency?: CurrencyCode;
@@ -48,6 +48,8 @@ interface BankingContextType {
   // Compte
   currency: CurrencyCode;
   balance: number;
+  /** Mode démo : fixer le solde à une valeur précise. */
+  setBalanceTo: (amount: number) => void;
   user: UserProfile;
   updateUser: (updates: Partial<UserProfile>) => void;
 
@@ -61,7 +63,7 @@ interface BankingContextType {
 
   // Transactions
   transactions: Transaction[];
-  addTransaction: (tx: NewTransaction) => void;
+  addTransaction: (tx: NewTransaction) => Transaction;
   toggleArchiveTransaction: (id: string) => void;
   selectedTransaction: Transaction | null;
   setSelectedTransaction: (tx: Transaction | null) => void;
@@ -257,6 +259,11 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     setTransactions((prev) => [newTx, ...prev].sort((a, b) => b.timestamp - a.timestamp));
     setBalance((prev) => prev + tx.amount);
+    return newTx;
+  }, []);
+
+  const setBalanceTo = useCallback((amount: number) => {
+    if (Number.isFinite(amount) && amount >= 0) setBalance(Math.round(amount));
   }, []);
 
   const toggleArchiveTransaction = useCallback((id: string) => {
@@ -404,6 +411,7 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         unlockWithBiometrics,
         currency,
         balance,
+        setBalanceTo,
         user,
         updateUser,
         card,
