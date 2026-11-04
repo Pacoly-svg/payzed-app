@@ -29,6 +29,24 @@ async function setup(): Promise<boolean> {
 /** Demande l'autorisation (Android 13+) et prépare le canal, une seule fois. */
 export const ensureNotifications = () => (ready ??= setup().catch(() => false));
 
+/** État de l'autorisation des notifications sur cet appareil. */
+export async function notificationStatus(): Promise<'granted' | 'denied' | 'prompt' | 'unsupported'> {
+  if (!Capacitor.isNativePlatform()) return 'unsupported';
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    const p = await LocalNotifications.checkPermissions();
+    return p.display === 'granted' ? 'granted' : p.display === 'denied' ? 'denied' : 'prompt';
+  } catch {
+    return 'unsupported';
+  }
+}
+
+/** Redemande l'autorisation (après un refus, Android peut exiger un passage par ses réglages). */
+export async function requestNotifications(): Promise<boolean> {
+  ready = null;
+  return ensureNotifications();
+}
+
 /** Identifiant numérique stable dérivé de l'identifiant d'opération. */
 const numericId = (key: string) => {
   let h = 0;

@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CurrencyCode,
   TabType,
@@ -18,8 +18,18 @@ import {
 } from '../data/initialData';
 import { formatTransactionDate } from '../utils/formatters';
 import { sha256 } from '../utils/sha256';
+import { newCardDetails } from '../utils/card';
 
-export type ModalType = 'qr' | 'scan' | 'services' | 'withdraw' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'vaults' | null;
+export type ModalType = 'qr' | 'scan' | 'services' | 'withdraw' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'vaults' | 'settings' | null;
+
+/** Compte enregistré sur l'appareil (Réglages › Comptes). */
+export interface AccountSummary {
+  id: string;
+  name: string;
+  phone: string;
+  type: 'personal' | 'business';
+  createdAt: number;
+}
 
 export interface ModalParams {
   /** Id d'un service du catalogue (ex. « senelec », « wave »). */
@@ -117,6 +127,15 @@ interface BankingContextType {
   toastMessage: string | null;
   showToast: (msg: string) => void;
 
+  // Comptes (plusieurs comptes sur l'appareil, chacun avec ses données)
+  accounts: AccountSummary[];
+  activeAccountId: string;
+  /** Crée un compte (solde 0, carte neuve, historique vide) puis bascule dessus. */
+  addAccount: (data: { name: string; phone: string; type: 'personal' | 'business' }) => void;
+  switchAccount: (id: string) => void;
+  /** Retire un compte inactif de l'appareil (ses données sont supprimées). */
+  removeAccount: (id: string) => void;
+
   resetToDemoDefaults: () => void;
 }
 
@@ -125,6 +144,13 @@ const BankingContext = createContext<BankingContextType | undefined>(undefined);
 const PREFIX = 'payzed_';
 const DATA_VERSION = 'v12_history';
 const DEFAULT_PIN = '1234';
+/** Données propres à chaque compte ; le reste (code PIN, préférences, SIM) est commun à l'appareil. */
+const ACCOUNT_KEYS = ['balance', 'user', 'card', 'transactions', 'subscriptions', 'vaults'] as const;
+const MAIN_ACCOUNT = 'acct_main';
+/** Bascule de compte : l'app redémarre déjà déverrouillée, avec un message d'accueil. */
+const RESUME_KEY = 'payzed_resume';
+/** Pendant une bascule, plus aucune écriture (les données du compte suivant sont déjà en place). */
+let storageFrozen = false;
 /** Le code PIN n'est jamais stocké en clair : seule son empreinte SHA-256 l'est. */
 const hashPin = (pin: string) => sha256(`payzed-pin:${pin}`);
 
@@ -143,6 +169,7 @@ function load<T>(key: string, fallback: T, validate?: (v: unknown) => boolean): 
 }
 
 function save(key: string, value: unknown) {
+  if (storageFrozen) return;
   try {
     localStorage.setItem(PREFIX + key, JSON.stringify(value));
   } catch {
@@ -175,7 +202,17 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isBalanceHidden, setIsBalanceHidden] = useState<boolean>(() => load('hide_balance', false));
   const [isHistoryHidden, setIsHistoryHidden] = useState<boolean>(() => load('hide_history', false));
 
-  const [isLocked, setIsLocked] = useState(true);
+  // Après une bascule de compte : déjà déverrouillé (le code a été saisi avant la bascule)
+  const [resumeMessage] = useState<string | null>(() => {
+    try {
+      const msg = sessionStorage.getItem(RESUME_KEY);
+      sessionStorage.removeItem(RESUME_KEY);
+      return msg;
+    } catch {
+      return null;
+    }
+  });
+  const [isLocked, setIsLocked] = useState(() => resumeMessage === null);
   const [pinHash, setPinHash] = useState<string>(() => {
     // Migration : ancien code stocké en clair → empreinte, puis suppression
     const legacy = load<string | null>('pin', null, (v) => typeof v === 'string' && /^\d{4}$/.test(v));
@@ -199,6 +236,11 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [transactions, setTransactions] = useState<Transaction[]>(() => load('transactions', INITIAL_TRANSACTIONS, isArray));
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>(() => load('subscriptions', INITIAL_SUBSCRIPTIONS, isArray));
   const [vaults, setVaults] = useState<VaultItem[]>(() => load('vaults', INITIAL_VAULTS, isArray));
+  const [activeAccountId] = useState<string>(() => load('active_account', MAIN_ACCOUNT, (v) => typeof v === 'string'));
+  const [storedAccounts, setAccounts] = useState<AccountSummary[]>(() => {
+    const saved = load<AccountSummary[]>('accounts', [], isArray);
+    return saved.length ? saved : [{ id: activeAccountId, name: user.name, phone: user.phone, type: user.accountType ?? 'personal', createdAt: Date.now() }];
+  });
 
   const [activeModal, setActiveModalState] = useState<ModalType>(null);
   const [modalParams, setModalParams] = useState<ModalParams>({});
@@ -221,6 +263,13 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => save('transactions', transactions), [transactions]);
   useEffect(() => save('subscriptions', subscriptions), [subscriptions]);
   useEffect(() => save('vaults', vaults), [vaults]);
+  // Le nom et le numéro du compte actif suivent le profil
+  const accounts = useMemo(
+    () => storedAccounts.map((a) => (a.id === activeAccountId ? { ...a, name: user.name, phone: user.phone } : a)),
+    [storedAccounts, activeAccountId, user.name, user.phone],
+  );
+  useEffect(() => save('accounts', accounts), [accounts]);
+  useEffect(() => save('active_account', activeAccountId), [activeAccountId]);
 
   // Toast unique (le timer précédent est annulé)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -296,26 +345,7 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setCard((prev) => ({ ...prev, internationalEnabled: !(prev.internationalEnabled ?? true) }));
   }, []);
   const replaceCard = useCallback(() => {
-    // Numéro Visa valide (contrôle de Luhn)
-    const digits = [4, 5, 3, 2, ...Array.from({ length: 11 }, () => Math.floor(Math.random() * 10))];
-    const sum = digits
-      .slice()
-      .reverse()
-      .reduce((acc, d, i) => acc + (i % 2 === 0 ? (d * 2 > 9 ? d * 2 - 9 : d * 2) : d), 0);
-    digits.push((10 - (sum % 10)) % 10);
-    const num = digits.join('').replace(/(\d{4})(?=\d)/g, '$1 ');
-    const exp = new Date();
-    exp.setFullYear(exp.getFullYear() + 4);
-    setCard((prev) => ({
-      ...prev,
-      id: `card_${Date.now()}`,
-      fullNumber: num,
-      maskedNumber: `${num.slice(0, 4)} •••• •••• ${num.slice(-4)}`,
-      cvv: String(Math.floor(100 + Math.random() * 900)),
-      expiryMonth: String(exp.getMonth() + 1).padStart(2, '0'),
-      expiryYear: String(exp.getFullYear()).slice(-2),
-      isFrozen: false,
-    }));
+    setCard((prev) => ({ ...prev, ...newCardDetails(), isFrozen: false }));
   }, []);
   const updateSpendingLimit = useCallback((limit: number) => {
     setCard((prev) => ({ ...prev, spendingLimit: limit }));
@@ -468,6 +498,100 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     showToast('Coffre supprimé');
   }, [vaults, addTransaction, showToast]);
 
+  /* ---------- Comptes ---------- */
+
+  /** Range les données du compte actif, installe celles du compte `id`, puis redémarre l'app. */
+  const activate = useCallback(
+    (id: string, next: Record<string, string> | null, welcome: string, list: AccountSummary[] = accounts) => {
+      try {
+        storageFrozen = true;
+        const snapshot: Record<string, string> = {};
+        ACCOUNT_KEYS.forEach((k) => {
+          snapshot[k] = JSON.stringify({ balance, user, card, transactions, subscriptions, vaults }[k]);
+        });
+        localStorage.setItem(`${PREFIX}acct_${activeAccountId}`, JSON.stringify(snapshot));
+        const stored = next ?? (JSON.parse(localStorage.getItem(`${PREFIX}acct_${id}`) ?? 'null') as Record<string, string> | null);
+        if (!stored) throw new Error('compte introuvable');
+        ACCOUNT_KEYS.forEach((k) => {
+          if (stored[k] != null) localStorage.setItem(PREFIX + k, stored[k]);
+          else localStorage.removeItem(PREFIX + k);
+        });
+        localStorage.removeItem(`${PREFIX}acct_${id}`);
+        localStorage.setItem(`${PREFIX}accounts`, JSON.stringify(list));
+        localStorage.setItem(`${PREFIX}active_account`, JSON.stringify(id));
+        sessionStorage.setItem(RESUME_KEY, welcome);
+        window.location.reload();
+      } catch {
+        storageFrozen = false;
+        showToast('Impossible de changer de compte');
+      }
+    },
+    [balance, user, card, transactions, subscriptions, vaults, activeAccountId, accounts, showToast],
+  );
+
+  const switchAccount = useCallback(
+    (id: string) => {
+      const target = accounts.find((a) => a.id === id);
+      if (!target || id === activeAccountId) return;
+      activate(id, null, `Compte ${target.name}`);
+    },
+    [accounts, activeAccountId, activate],
+  );
+
+  const addAccount = useCallback(
+    ({ name, phone, type }: { name: string; phone: string; type: 'personal' | 'business' }) => {
+      const id = `acct_${Date.now()}`;
+      const holder = name.toUpperCase();
+      const newUser: UserProfile = {
+        ...INITIAL_USER,
+        name,
+        phone,
+        tag: `@${name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '')}`,
+        avatarUrl: '',
+        tier: 'Standard',
+        plan: 'free',
+        accountType: type,
+      };
+      const newCard: VirtualCardData = {
+        ...INITIAL_CARD,
+        ...newCardDetails(),
+        cardholderName: holder,
+        currentMonthSpent: 0,
+        spendingLimit: 2_000_000,
+        cardLevel: type === 'business' ? 'BUSINESS' : INITIAL_CARD.cardLevel,
+      };
+      const data: Record<string, string> = {
+        balance: JSON.stringify(0),
+        user: JSON.stringify(newUser),
+        card: JSON.stringify(newCard),
+        transactions: JSON.stringify([]),
+        subscriptions: JSON.stringify([]),
+        vaults: JSON.stringify([]),
+      };
+      activate(id, data, `Compte ${name} créé`, [...accounts, { id, name, phone, type, createdAt: Date.now() }]);
+    },
+    [accounts, activate],
+  );
+
+  const removeAccount = useCallback(
+    (id: string) => {
+      if (id === activeAccountId) return;
+      try {
+        localStorage.removeItem(`${PREFIX}acct_${id}`);
+      } catch {
+        // ignore
+      }
+      setAccounts((prev) => prev.filter((a) => a.id !== id));
+      showToast('Compte retiré de cet appareil');
+    },
+    [activeAccountId, showToast],
+  );
+
+  // Message après une bascule de compte
+  useEffect(() => {
+    if (resumeMessage) showToast(resumeMessage);
+  }, [resumeMessage, showToast]);
+
   /* ---------- Réinitialisation ---------- */
 
   const resetToDemoDefaults = useCallback(() => {
@@ -489,9 +613,10 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setTransactions(INITIAL_TRANSACTIONS);
     setSubscriptions(INITIAL_SUBSCRIPTIONS);
     setVaults(INITIAL_VAULTS);
+    setAccounts([{ id: activeAccountId, name: INITIAL_USER.name, phone: INITIAL_USER.phone, type: 'personal', createdAt: Date.now() }]);
     setActiveTabState('comptes');
     showToast('Données réinitialisées');
-  }, [showToast]);
+  }, [showToast, activeAccountId]);
 
   return (
     <BankingContext.Provider
@@ -549,6 +674,11 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         modalParams,
         toastMessage,
         showToast,
+        accounts,
+        activeAccountId,
+        addAccount,
+        switchAccount,
+        removeAccount,
         resetToDemoDefaults,
       }}
     >

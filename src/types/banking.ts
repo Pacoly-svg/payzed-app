@@ -88,6 +88,10 @@ export interface UserProfile {
   countryCode: 'CI' | 'SN' | 'FR' | 'US' | 'GB';
   iban: string;
   bic: string;
+  /** Formule du compte (Réglages › Plan). */
+  plan?: 'free' | 'pro';
+  /** Compte personnel ou professionnel (plusieurs comptes sur l'appareil). */
+  accountType?: 'personal' | 'business';
 }
 
 export interface VirtualCardData {
@@ -106,7 +110,7 @@ export interface VirtualCardData {
   spendingLimit: number;
   currentMonthSpent: number;
   cardBrand: 'visa' | 'mastercard';
-  cardLevel: 'BLACK INFINITE' | 'PLATINUM' | 'METAL WORLD ELITE';
+  cardLevel: 'BLACK INFINITE' | 'PLATINUM' | 'METAL WORLD ELITE' | 'BUSINESS';
 }
 
 export interface SubscriptionItem {

@@ -184,9 +184,9 @@ export interface Merchant {
 
 export const MERCHANTS: Merchant[] = [
   { id: 'm_auchan', name: 'Auchan', kind: 'Supermarché', logo: `${T}/merchant-auchan.svg`, source: 'simple-icons' },
-  { id: 'm_yumyum', name: 'Yum Yum', kind: 'Restauration', aliases: ['yum yum', 'yumyum'] },
-  { id: 'm_pathe', name: 'Cinéma Pathé', kind: 'Cinéma', aliases: ['pathe', 'pathé'] },
-  { id: 'm_cafederome', name: 'Café de Rome', kind: 'Restaurant', aliases: ['cafe de rome', 'café de rome'] },
+  { id: 'm_yumyum', name: 'Yum Yum', kind: 'Restauration', logo: `${T}/merchant-yumyum.png`, source: 'fourni', aliases: ['yum yum', 'yumyum'] },
+  { id: 'm_pathe', name: 'Cinéma Pathé', kind: 'Cinéma', logo: `${T}/merchant-pathe.png`, source: 'fourni', aliases: ['pathe', 'pathé'] },
+  { id: 'm_cafederome', name: 'Café de Rome', kind: 'Restaurant', logo: `${T}/merchant-cafederome.png`, source: 'fourni', aliases: ['cafe de rome', 'café de rome'] },
   { id: 'm_apple', name: 'Apple', kind: 'High-tech', logo: `${T}/merchant-apple.svg`, source: 'simple-icons', aliases: ['apple store'] },
   { id: 'm_nvidia', name: 'Nvidia', kind: 'High-tech', logo: `${T}/merchant-nvidia.svg`, source: 'simple-icons' },
 ];

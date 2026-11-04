@@ -1,4 +1,4 @@
-# Inventaire des logos — Payzed 1.8.0
+# Inventaire des logos — Payzed 1.9.0
 
 Source de vérité : `src/data/catalog.ts` (opérateurs → logo, services → opérateur).
 Affichage : composant unique `src/components/common/BrandLogo.tsx` (normalisation automatique).
@@ -60,9 +60,9 @@ Affichage : composant unique `src/components/common/BrandLogo.tsx` (normalisatio
 | Auchan | `logos/tiles/merchant-auchan.svg` | Simple Icons (#D6180B sur fond blanc) | ✅ |
 | Apple | `logos/tiles/merchant-apple.svg` | Simple Icons | ✅ |
 | Nvidia | `logos/tiles/merchant-nvidia.svg` | Simple Icons (#76B900 sur fond blanc) | ✅ |
-| Yum Yum | — | — | ⏳ repère neutre (initiales) : logo officiel à fournir |
-| Cinéma Pathé | — | — | ⏳ repère neutre (initiales) : logo officiel à fournir |
-| Café de Rome | — | — | ⏳ repère neutre (initiales) : logo officiel à fournir |
+| Yum Yum | `logos/tiles/merchant-yumyum.png` | Fourni par le propriétaire (`design/logos-source/yumyum.png`) | ✅ |
+| Cinéma Pathé | `logos/tiles/merchant-pathe.png` | Fourni par le propriétaire (`design/logos-source/pathe.png`, fond jaune plein) | ✅ |
+| Café de Rome | `logos/tiles/merchant-cafederome.png` | Fourni par le propriétaire (symbole du Colisée isolé, le texte étant illisible en petit) | ✅ |
 
 Les commerçants sont déclarés dans `MERCHANTS` (`src/data/catalog.ts`) ; même règle que pour les opérateurs : déposer le
 fichier officiel dans `public/logos/tiles/` puis renseigner `logo` et `source`.

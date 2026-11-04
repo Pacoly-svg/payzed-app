@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, ChevronRight, Fingerprint, FlaskConical, KeyRound, Lock, Presentation, RotateCcw } from 'lucide-react';
+import { Camera, ChevronRight, Fingerprint, FlaskConical, KeyRound, Presentation, RotateCcw } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { Sheet } from '../common/Sheet';
 import { DemoSheet } from './DemoSheet';
@@ -36,7 +36,7 @@ const VersionLabel: React.FC = () => {
 };
 
 export const SettingsScreen: React.FC = () => {
-  const { user, updateUser, lockApp, isBiometricsEnabled, toggleBiometrics, resetToDemoDefaults, showToast, testMode, setTestMode } = useBanking();
+  const { user, updateUser, isBiometricsEnabled, toggleBiometrics, resetToDemoDefaults, showToast, testMode, setTestMode } = useBanking();
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone);
   const [sheet, setSheet] = useState<'pin' | 'reset' | 'demo' | 'testmode' | null>(null);
@@ -92,7 +92,10 @@ export const SettingsScreen: React.FC = () => {
           </span>
         </button>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPhoto} />
-        <p className="mt-3 text-xl font-bold">{user.name}</p>
+        <p className="mt-3 text-xl font-bold inline-flex items-center gap-2">
+          {user.name}
+          {user.plan === 'pro' && <span className="text-[11px] font-extrabold tracking-wide px-2 py-1 rounded-full bg-black text-white">PRO</span>}
+        </p>
         <p className="text-[15px] text-neutral-500">{user.phone}</p>
         {user.avatarUrl && (
           <button type="button" onClick={() => updateUser({ avatarUrl: '' })} className="mt-1 text-[13px] font-semibold text-neutral-500 py-1">
@@ -126,12 +129,6 @@ export const SettingsScreen: React.FC = () => {
             onClick={() => setSheet('pin')}
             icon={<IconBox><KeyRound className="w-5 h-5" /></IconBox>}
             title="Changer le code PIN"
-            trailing={<ChevronRight className="w-5 h-5 text-neutral-400" />}
-          />
-          <Row
-            onClick={lockApp}
-            icon={<IconBox><Lock className="w-5 h-5" /></IconBox>}
-            title="Verrouiller l'application"
             trailing={<ChevronRight className="w-5 h-5 text-neutral-400" />}
           />
         </List>

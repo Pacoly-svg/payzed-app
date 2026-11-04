@@ -1,5 +1,39 @@
 # Audit Payzed
 
+## Version 1.9.0
+
+### Réglages (engrenage en haut à gauche)
+L'en-tête devient : engrenage · logo Payzed · scanner. L'engrenage ouvre **Réglages** :
+- **Comptes** : compte actif (nom, numéro, type, badge Gratuit / PRO), autres comptes de l'appareil, **Ajouter un autre
+  compte** (personnel ou professionnel, nom + numéro sénégalais vérifié, numéro déjà utilisé refusé). Chaque compte a son
+  propre solde, sa carte (nouveau numéro Visa valide), son historique, ses coffres et abonnements. La bascule range les
+  données du compte actif, installe celles de l'autre et rouvre l'app déjà déverrouillée. Un compte inactif peut être
+  retiré de l'appareil. Le code PIN, SIM et les préférences restent communs à l'appareil.
+- **Amis** : *Inviter un ami* (partage direct d'un message avec le lien de téléchargement) et *Parrainer un ami*
+  (code personnel, copie d'un geste, fonctionnement en 3 étapes, compteurs).
+- **Vos appareils** : modèle et version d'Android (plugin `@capacitor/device`), date de première connexion, mode de
+  déverrouillage, version de Payzed, état des notifications avec bouton « Activer ».
+- **Plan** : Gratuit (2 comptes) ou Pro à 2 500 FCFA / mois (jusqu'à 5 comptes, service client prioritaire, badge PRO).
+  Le passage à Pro passe par un récapitulatif, débite le solde (opération « Payzed Pro ») et envoie la notification.
+  Retour au plan Gratuit possible à tout moment.
+- **Service client** : appel et WhatsApp, foire aux questions (frais, retrait agent, échec, carte perdue, code PIN,
+  historique). Ligne prioritaire affichée pour les comptes Pro.
+- **Se déconnecter** : confirmation puis écran du code PIN (les données restent sur l'appareil). La ligne
+  « Verrouiller l'application » du Profil, qui faisait la même chose, est retirée.
+
+Coordonnées et offres réglables en un seul endroit : `src/data/company.ts` (numéro du service client, lien
+d'invitation, prime de parrainage, prix Pro, nombre de comptes).
+
+### Logos
+Café de Rome (symbole du Colisée), Cinéma Pathé et Yum Yum intégrés depuis les fichiers fournis : tous les
+commerçants de SIM ont maintenant leur logo.
+
+### Tests
+Réglages 47/47 (nouveau), simulations 31/31, navigation et formulaires 21/21, retrait / reçu / logos / QR 13/13,
+clavier 100/100, responsive sans débordement.
+
+---
+
 ## Version 1.8.0
 
 ### SIM (simulations de démonstration)

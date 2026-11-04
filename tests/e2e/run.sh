@@ -10,7 +10,7 @@ PREVIEW=$!
 trap 'kill $PREVIEW' EXIT
 sleep 2
 OUT=$(mktemp -d)
-for t in navigation-formulaires simulation-sim retrait-recu-logos-qr clavier responsive; do
+for t in navigation-formulaires simulation-sim reglages retrait-recu-logos-qr clavier responsive; do
   echo "== $t"
   node "tests/e2e/$t.cjs" "$OUT" | tail -2
 done

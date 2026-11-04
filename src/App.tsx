@@ -27,6 +27,7 @@ const TransactionDetailsModal = lazy(() => import('./components/modals/Transacti
 const WithdrawModal = lazy(() => import('./components/modals/WithdrawModal').then((m) => ({ default: m.WithdrawModal })));
 const ServicesModal = lazy(() => import('./components/modals/ServicesModal').then((m) => ({ default: m.ServicesModal })));
 const VaultsModal = lazy(() => import('./components/modals/VaultsModal').then((m) => ({ default: m.VaultsModal })));
+const SettingsSheet = lazy(() => import('./components/parametres/SettingsSheet').then((m) => ({ default: m.SettingsSheet })));
 
 const MODALS = {
   qr: QRCodeModal,
@@ -38,6 +39,7 @@ const MODALS = {
   bills: BillsModal,
   topup: TopUpModal,
   vaults: VaultsModal,
+  settings: SettingsSheet,
 } as const;
 
 const Screen: React.FC = () => {
