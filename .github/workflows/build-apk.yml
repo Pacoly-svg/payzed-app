@@ -58,12 +58,14 @@ jobs:
           name: Payzed-APK
           path: Payzed-v*.apk
 
-      # Lien de téléchargement direct (ouvrable depuis le téléphone)
+      # Lien de téléchargement direct (ouvrable depuis le téléphone).
+      # Sur main : version officielle. Sur une autre branche : version de test.
       - name: Publier sur la page Releases
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}-build${{ github.run_number }}
-          name: Payzed v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: Payzed v${{ env.VERSION }}${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && '' || ' (test)' }}
           files: Payzed-v*.apk
-          make_latest: true
+          prerelease: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' }}
+          make_latest: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && 'true' || 'false' }}
