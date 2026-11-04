@@ -13,7 +13,7 @@ export interface CurrencyConfig {
 
 export type TabType = 'comptes' | 'statistiques' | 'cartes' | 'parametres';
 
-export type TransactionType = 'transfer_out' | 'transfer_in' | 'withdrawal' | 'subscription' | 'bill' | 'topup' | 'salary' | 'pos' | 'card_payment';
+export type TransactionType = 'transfer_out' | 'transfer_in' | 'withdrawal' | 'deposit' | 'subscription' | 'bill' | 'topup' | 'salary' | 'pos' | 'card_payment';
 
 export type TransactionCategory = 
   | 'Alimentation & Restaurants'

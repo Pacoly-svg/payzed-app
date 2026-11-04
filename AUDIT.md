@@ -1,5 +1,48 @@
 # Audit Payzed
 
+## Version 1.8.0
+
+### SIM (simulations de démonstration)
+- **Opérations programmées invisibles jusqu'à leur arrivée :** une entrée ou un envoi programmé n'apparaît ni dans
+  l'historique, ni dans les statistiques, et ne touche pas au solde tant que l'heure d'arrivée n'est pas atteinte.
+  Il n'est visible que dans « Programmées » (écran Simulations), où il peut être annulé (supprimé sans trace).
+  À l'arrivée : il prend la date et l'heure d'arrivée, le solde est mis à jour une seule fois, la notification part.
+  Rattrapage au redémarrage si l'app était fermée.
+- **Nouveaux types :** Entrée, Dépôt, Envoi, Retrait, Achat. Achats chez Yum Yum, Auchan, Cinéma Pathé, Café de Rome,
+  Apple et Nvidia (« Auchan · Paiement par carte » dans l'historique).
+- **Frais 1 %** appliqués aux envois, achats et retraits simulés (comme les opérations réelles) ; dépôts et entrées sans frais.
+  Le récapitulatif montant + frais + total s'affiche avant de lancer.
+
+### Notifications système (comme un SMS)
+- Plugin `@capacitor/local-notifications` : canal « Opérations Payzed » en importance maximale, avec le **son de
+  notification du téléphone**, la vibration et l'affichage sur l'écran verrouillé. Petite icône Payzed blanche
+  (`ic_stat_payzed`). Autorisation demandée au premier déverrouillage (Android 13 et plus).
+- Une notification pour chaque opération : envoi, réception, dépôt, retrait, achat, facture, recharge, abonnement,
+  échec. Les opérations SIM programmées sont planifiées à l'avance par Android : elles arrivent même app fermée.
+  Pour une heure exacte à la seconde, autoriser « Alarmes et rappels » (raccourci proposé dans Simulations) ;
+  sinon Android peut décaler de quelques minutes.
+- **Textes** (`src/utils/messages.ts`) : titre court qui dit ce qui s'est passé (« Argent reçu », « Envoi effectué »,
+  « Paiement accepté », « Retrait effectué », « Opération échouée »…), puis montant, contrepartie, canal, frais et
+  nouveau solde ; la référence est ajoutée dans le détail.
+
+### Historique
+- **Œil** dans l'en-tête de l'historique : masque tout l'historique d'un geste (mémorisé), « Afficher » pour le revoir.
+- **Choisir** : sélection manuelle d'opérations à masquer ; filtre « Masqués (n) » pour les retrouver et les réafficher.
+- Libellés revus : « Reçu · Wave », « Envoyé · Orange Money », « Dépôt · … », « Retrait chez un agent »,
+  « Paiement par carte », « Facture », « Crédit téléphonique », « Abonnement ».
+- **Identité noir et blanc :** plus de vert pour l'argent reçu (montants en noir, signe + ou −). Le rouge est réservé
+  aux opérations échouées (badge « Échoué » et montant barré).
+
+### Logos
+Ria (carré orange), Bank of Africa et Société Générale intégrés depuis les fichiers fournis ; commerçants Auchan,
+Apple et Nvidia (Simple Icons). Yum Yum, Cinéma Pathé et Café de Rome : repère neutre en attendant les logos officiels.
+
+### Tests
+Simulations 31/31, navigation et formulaires 21/21, retrait / reçu / logos / QR 13/13, clavier 100/100,
+responsive sans débordement. Notifications système et son : à vérifier sur téléphone (non testables sans appareil).
+
+---
+
 ## Version 1.7.0
 
 ### Saisie : le texte n'apparaissait qu'après la fermeture du clavier

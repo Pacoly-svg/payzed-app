@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useBanking } from '../../context/BankingContext';
+import { useDemo } from '../../context/DemoContext';
 import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { feeFor } from '../../utils/fees';
@@ -12,6 +13,7 @@ import { AmountField, Button, ChoiceGrid, FeeSummary, Field, ReviewView, Success
 const OPERATORS = servicesIn('telecom');
 
 export const TopUpModal: React.FC = () => {
+  const { announce } = useDemo();
   const { setActiveModal, modalParams, currency, balance, user, addTransaction } = useBanking();
   const preset = findService(modalParams.provider);
   const [op, setOp] = useState<string>(preset?.category === 'telecom' ? preset.id : OPERATORS[0].id);
@@ -32,7 +34,7 @@ export const TopUpModal: React.FC = () => {
   const number = formatSnPhone(phone);
 
   const execute = () => {
-    addTransaction({
+    const tx = addTransaction({
       title: `Crédit ${opLabel}`,
       subtitle: number,
       category: 'Télécom & Données',
@@ -45,6 +47,7 @@ export const TopUpModal: React.FC = () => {
       fee,
       paymentMethod: 'Compte Payzed',
     });
+    announce(tx, balance - (value + fee));
     triggerSuccessConfetti();
     setStep('done');
   };

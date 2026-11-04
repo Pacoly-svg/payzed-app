@@ -114,7 +114,7 @@ export async function renderReceipt(tx: Transaction, holderName: string): Promis
   ctx.font = `800 92px ${FONT}`;
   ctx.fillText(`${isIn ? '+' : '-'}${formatCurrency(amount, tx.currency)}`, W / 2, 460);
   const STATUS_TEXT: Record<Transaction['status'], [string, string]> = {
-    completed: [isIn ? 'Argent reçu' : 'Paiement réussi', '#16A34A'],
+    completed: [isIn ? 'Argent reçu' : 'Paiement réussi', '#000000'],
     pending: ['En attente', '#B45309'],
     processing: ['En cours de traitement', '#1D4ED8'],
     failed: ['Opération échouée', '#DC2626'],

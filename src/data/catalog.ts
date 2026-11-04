@@ -97,13 +97,13 @@ export const OPERATORS: Operator[] = [
   // Banques
   { id: 'cbao', name: 'CBAO', logo: `${T}/cbao.png`, source: 'projet' },
   { id: 'ecobank', name: 'Ecobank', logo: `${T}/ecobank.png`, source: 'projet' },
-  { id: 'sgsn', name: 'Société Générale Sénégal' },
+  { id: 'sgsn', name: 'Société Générale Sénégal', logo: `${T}/sgsn.png`, source: 'fourni' },
   { id: 'uba', name: 'UBA', logo: `${T}/uba.png`, source: 'fourni' },
-  { id: 'boa', name: 'Bank of Africa' },
+  { id: 'boa', name: 'Bank of Africa', logo: `${T}/boa.png`, source: 'fourni' },
   // Transferts internationaux
   { id: 'westernunion', name: 'Western Union', logo: `${T}/westernunion.svg`, source: 'simple-icons' },
   { id: 'moneygram', name: 'MoneyGram', logo: `${T}/moneygram.svg`, source: 'simple-icons' },
-  { id: 'ria', name: 'Ria' },
+  { id: 'ria', name: 'Ria', logo: `${T}/ria.png`, source: 'fourni' },
   { id: 'paypal', name: 'PayPal', logo: '/logos/paypal_icon.svg', fit: 'contain', source: 'projet' },
   // Énergie, eau, péage, État, assurance
   { id: 'senelec', name: 'Senelec', logo: `${T}/senelec.png`, source: 'projet' },
@@ -168,6 +168,29 @@ export const SERVICES: Service[] = [
   { id: 'gemini', operatorId: 'google', name: 'Gemini', category: 'subscriptions', aliases: ['google'] },
 ];
 
+/**
+ * Commerçants (achats par carte / paiements marchands, utilisés par SIM et l'historique).
+ * Ils n'apparaissent pas dans « Paiement » : ce ne sont pas des services à régler depuis l'app.
+ */
+export interface Merchant {
+  id: string;
+  name: string;
+  /** Libellé d'activité affiché dans l'historique. */
+  kind: string;
+  logo?: string;
+  source?: LogoSource;
+  aliases?: string[];
+}
+
+export const MERCHANTS: Merchant[] = [
+  { id: 'm_auchan', name: 'Auchan', kind: 'Supermarché', logo: `${T}/merchant-auchan.svg`, source: 'simple-icons' },
+  { id: 'm_yumyum', name: 'Yum Yum', kind: 'Restauration', aliases: ['yum yum', 'yumyum'] },
+  { id: 'm_pathe', name: 'Cinéma Pathé', kind: 'Cinéma', aliases: ['pathe', 'pathé'] },
+  { id: 'm_cafederome', name: 'Café de Rome', kind: 'Restaurant', aliases: ['cafe de rome', 'café de rome'] },
+  { id: 'm_apple', name: 'Apple', kind: 'High-tech', logo: `${T}/merchant-apple.svg`, source: 'simple-icons', aliases: ['apple store'] },
+  { id: 'm_nvidia', name: 'Nvidia', kind: 'High-tech', logo: `${T}/merchant-nvidia.svg`, source: 'simple-icons' },
+];
+
 /* ---------- Accès ---------- */
 
 const norm = (s: string) =>
@@ -204,8 +227,17 @@ export function brandOf(key: string): { name: string; logo?: string; fit?: 'cove
     const op = findOperator(service.operatorId);
     return { name: service.name, logo: service.logo ?? op?.logo, fit: service.logo ? service.fit : op?.fit };
   }
+  const merchant = findMerchant(key);
+  if (merchant) return { name: merchant.name, logo: merchant.logo };
   const op = OPERATORS.find((o) => norm(o.id) === norm(key) || norm(o.name) === norm(key));
   return op ? { name: op.name, logo: op.logo, fit: op.fit } : undefined;
+}
+
+/** Retrouve un commerçant par id, nom ou alias. */
+export function findMerchant(key: string | undefined | null): Merchant | undefined {
+  if (!key) return undefined;
+  const k = norm(key);
+  return MERCHANTS.find((m) => k === m.id || k === norm(m.name) || (m.aliases ?? []).some((a) => norm(a) === k));
 }
 
 export function searchServices(query: string): Service[] {

@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { decodePayload, type Payee } from './utils/payLink';
+import { ensureNotifications } from './utils/notify';
 import { BACK_PRIORITY, leaveApp, useBackHandler } from './utils/backStack';
 import { BankingProvider, useBanking } from './context/BankingContext';
 import { MobileFrame } from './components/common/MobileFrame';
@@ -70,6 +71,11 @@ const PayzedApp: React.FC = () => {
     })();
     return () => remove?.();
   }, []);
+  // Notifications système : autorisation demandée au premier déverrouillage (Android 13+)
+  useEffect(() => {
+    if (!isLocked) void ensureNotifications();
+  }, [isLocked]);
+
   // Ouvert seulement après déverrouillage par code PIN
   useEffect(() => {
     if (pendingLink && !isLocked) {

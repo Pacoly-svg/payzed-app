@@ -1,9 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useBanking } from './BankingContext';
-import { formatCurrency } from '../utils/formatters';
+import { formatTransactionDate } from '../utils/formatters';
 import { feeFor } from '../utils/fees';
-import { findService, type CategoryId } from '../data/catalog';
+import { findMerchant, findService, type CategoryId } from '../data/catalog';
+import { operationMessage } from '../utils/messages';
+import { cancelNotification, notifyAt, notifyNow } from '../utils/notify';
 import type { SimSchedule, Transaction, TransactionStatus } from '../types/banking';
 
 /*
@@ -16,9 +18,11 @@ import type { SimSchedule, Transaction, TransactionStatus } from '../types/banki
  * premier plan, puis chaque seconde) : un redémarrage de l'app ne perd rien et
  * aucun résultat n'est appliqué deux fois (`settled`).
  *
- * Effets sur le solde (cohérents avec un vrai portefeuille) :
- *  - sortie / retrait : montant + frais débités dès la création, remboursés si échec/annulation ;
- *  - entrée : créditée uniquement quand l'opération réussit.
+ * Opération PROGRAMMÉE (durée > 0) : elle n'apparaît nulle part dans l'historique et ne
+ * touche pas au solde tant qu'elle n'est pas « arrivée ». À l'échéance, elle apparaît à la
+ * date d'arrivée avec son résultat (réussie → solde ajusté ; échouée → visible en rouge,
+ * aucun mouvement). Une notification système Android est programmée pour cette échéance,
+ * avec le son du téléphone, même si l'app est fermée. Annulée → elle disparaît.
  */
 
 /** Familles de canaux proposées dans SIM (issues du catalogue). */
@@ -41,11 +45,14 @@ const loadCustom = (): CustomPlatform[] => {
   }
 };
 
-export type SimKind = 'in' | 'out' | 'withdrawal';
+export type SimKind = 'in' | 'deposit' | 'out' | 'withdrawal' | 'purchase';
+
+/** Sorties d'argent : frais de 1 % (envoi, retrait, achat). Entrées et dépôts : gratuits. */
+export const isOutgoing = (k: SimKind) => k === 'out' || k === 'withdrawal' || k === 'purchase';
 
 export interface SimulationConfig {
   kind: SimKind;
-  /** Canal officiel (wave, orange_money…) ou id d'un canal personnalisé. */
+  /** Canal officiel (wave, orange_money…), commerçant (m_auchan…) ou canal personnalisé. */
   platform: string;
   name: string;
   phone?: string;
@@ -71,8 +78,10 @@ interface DemoContextType {
   /** Lance une simulation. Renvoie un message d'erreur, ou null si elle a démarré. */
   simulate: (cfg: SimulationConfig) => string | null;
   cancelSim: (txId: string) => void;
-  /** Opérations SIM non terminées (en attente / en cours). */
+  /** Opérations SIM programmées, pas encore arrivées. */
   activeSims: Transaction[];
+  /** Notification système + bandeau pour une opération qui vient d'aboutir (tous parcours). */
+  announce: (tx: Transaction, newBalance?: number) => void;
   /** Supprime toutes les opérations SIM et annule leurs effets sur le solde. */
   purgeSims: () => number;
   customPlatforms: CustomPlatform[];
@@ -145,7 +154,8 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [customPlatforms]);
 
   const platformLabel = useCallback(
-    (id: string) => (id === 'payzed' ? 'Payzed' : customRef.current.find((p) => p.id === id)?.name ?? findService(id)?.name ?? 'Payzed'),
+    (id: string) =>
+      id === 'payzed' ? 'Payzed' : customRef.current.find((p) => p.id === id)?.name ?? findMerchant(id)?.name ?? findService(id)?.name ?? 'Payzed',
     [],
   );
   const platformLogo = useCallback((id: string) => customRef.current.find((p) => p.id === id)?.logo ?? id, []);
@@ -161,8 +171,15 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /* ----- Notifications ----- */
   const dismissNotification = useCallback(() => setNotification(null), []);
-  const notify = useCallback((tx: Transaction, title: string, message: string) => {
-    setNotification({ id: tx.id, brand: tx.brandLogo ?? 'payzed', tx, title, message });
+  const balanceRef = useRef(balance);
+  useEffect(() => {
+    balanceRef.current = balance;
+  }, [balance]);
+
+  /** Bandeau dans l'app + son ; `system` : notification Android (barre de notification, son du téléphone). */
+  const showBanner = useCallback((tx: Transaction, newBalance?: number) => {
+    const msg = operationMessage(tx, newBalance);
+    setNotification({ id: tx.id, brand: tx.brandLogo ?? 'payzed', tx, title: msg.title, message: msg.body });
     chime();
     try {
       navigator.vibrate?.([80, 60, 80]);
@@ -173,20 +190,9 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
     notifTimer.current = setTimeout(() => setNotification(null), 6000);
   }, []);
 
-  /** Texte de notification selon le résultat. */
-  const describe = (tx: Transaction, status: TransactionStatus) => {
-    const amt = formatCurrency(Math.abs(tx.amount), 'XOF');
-    const who = tx.title;
-    const via = tx.paymentMethod;
-    if (status === 'failed') {
-      return tx.amount > 0
-        ? { title: 'Entrée échouée', message: `L'envoi de ${amt} par ${who} via ${via} a échoué.` }
-        : { title: 'Opération échouée', message: `${tx.type === 'withdrawal' ? 'Le retrait' : "L'envoi"} de ${amt} a échoué. Le montant a été recrédité.` };
-    }
-    if (tx.amount > 0) return { title: `+${amt} reçus`, message: `${who} vous a envoyé ${amt} via ${via}.` };
-    if (tx.type === 'withdrawal') return { title: `Retrait de ${amt} effectué`, message: `Retrait via ${via} réussi.` };
-    return { title: `-${amt} envoyés`, message: `Paiement de ${amt} à ${who} via ${via} réussi.` };
-  };
+  const announce = useCallback((tx: Transaction, newBalance?: number) => {
+    void notifyNow(tx.id, operationMessage(tx, newBalance));
+  }, []);
 
   /* ----- Moteur : recalcul des statuts à partir des horodatages persistés ----- */
   const txRef = useRef(transactions);
@@ -195,31 +201,47 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [transactions]);
   const settling = useRef(new Set<string>());
 
+  /** Effet d'une opération réussie sur le solde. */
+  const deltaOf = (tx: Transaction) => (tx.amount > 0 ? tx.amount : tx.amount - (tx.fee || 0));
+
   const tick = useCallback(() => {
     const now = Date.now();
-    const settledNow: Transaction[] = [];
+    const arrived: { tx: Transaction; newBalance: number }[] = [];
+    let running = balanceRef.current;
     for (const tx of txRef.current) {
       const sim = tx.sim;
       if (!sim || sim.settled || tx.status === 'cancelled' || settling.current.has(tx.id)) continue;
-      const status = simStatusAt(sim, now);
+      let status = simStatusAt(sim, now);
       if (now >= sim.resolveAt) {
         settling.current.add(tx.id);
         // Application du résultat — une seule fois
-        if (status === 'completed' && tx.amount > 0) adjustBalance(tx.amount);
-        if (status === 'failed' && sim.held > 0) adjustBalance(sim.held);
-        updateTransaction(tx.id, { status, sim: { ...sim, settled: true } });
-        settledNow.push({ ...tx, status });
+        if (sim.held > 0) {
+          // Ancien format (v1.6) : montant déjà débité à la création
+          if (status === 'failed') {
+            adjustBalance(sim.held);
+            running += sim.held;
+          }
+        } else if (status === 'completed') {
+          const delta = deltaOf(tx);
+          if (running + delta < 0) status = 'failed'; // solde insuffisant au moment de l'arrivée
+          else {
+            adjustBalance(delta);
+            running += delta;
+          }
+        }
+        const arrivedAt = sim.resolveAt;
+        updateTransaction(tx.id, { status, timestamp: arrivedAt, date: formatTransactionDate(arrivedAt), sim: { ...sim, settled: true } });
+        arrived.push({ tx: { ...tx, status, timestamp: arrivedAt }, newBalance: running });
       } else if (status !== tx.status) {
         updateTransaction(tx.id, { status });
       }
     }
-    if (settledNow.length) {
-      const last = settledNow[settledNow.length - 1];
-      const d = describe(last, last.status);
-      notify(last, d.title, d.message);
-      if (settledNow.length > 1) showToast(`${settledNow.length} opérations SIM mises à jour`);
+    if (arrived.length) {
+      const last = arrived[arrived.length - 1];
+      showBanner(last.tx, last.tx.status === 'completed' ? last.newBalance : undefined);
+      if (arrived.length > 1) showToast(`${arrived.length} opérations arrivées`);
     }
-  }, [adjustBalance, updateTransaction, notify, showToast]);
+  }, [adjustBalance, updateTransaction, showBanner, showToast]);
 
   useEffect(() => {
     tick(); // rattrapage au démarrage (opérations arrivées à échéance app fermée)
@@ -240,69 +262,89 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   /* ----- Création ----- */
-  const balanceRef = useRef(balance);
-  useEffect(() => {
-    balanceRef.current = balance;
-  }, [balance]);
-
   const simulate = useCallback(
     (cfg: SimulationConfig): string | null => {
       primeAudio(); // le son doit être « débloqué » pendant le toucher de l'utilisateur
-      const isIn = cfg.kind === 'in';
+      const kind = cfg.kind;
+      const outgoing = isOutgoing(kind);
       const amount = Math.round(cfg.amount);
       if (!(amount > 0)) return 'Montant invalide';
-      const fee = isIn ? 0 : feeFor(amount);
+      const fee = outgoing ? feeFor(amount) : 0;
       const label = platformLabel(cfg.platform);
+      const merchant = kind === 'purchase' ? findMerchant(cfg.platform) : undefined;
       const who = cfg.name.trim();
       const contact = cfg.phone?.trim() ? `${who} · ${cfg.phone.trim()}` : who;
       const now = Date.now();
       const backdated = Boolean(cfg.timestamp && now - cfg.timestamp > 60_000);
       const delay = backdated ? 0 : Math.max(0, Math.round(cfg.delayMs));
+      const scheduled = delay > 0;
       const outcome = cfg.outcome;
-      const immediateStatus: TransactionStatus = delay === 0 ? outcome : 'pending';
 
-      // Sortie : le montant + frais doit être disponible (débité dès maintenant)
-      const debitNow = !isIn && immediateStatus !== 'failed';
-      if (debitNow && amount + fee > balanceRef.current) return 'Solde insuffisant (frais compris)';
+      if (!scheduled && outgoing && outcome === 'completed' && amount + fee > balanceRef.current) return 'Solde insuffisant (frais compris)';
 
       const sim: SimSchedule = {
         createdAt: now,
         processingAt: now + Math.round(delay * 0.2),
         resolveAt: now + delay,
         outcome,
-        settled: delay === 0,
-        held: debitNow ? amount + fee : 0,
+        settled: !scheduled,
+        held: 0,
       };
 
+      const base = {
+        kind,
+        title:
+          kind === 'purchase'
+            ? merchant?.name ?? label
+            : kind === 'withdrawal'
+              ? `Retrait ${label}`
+              : kind === 'deposit'
+                ? `Dépôt ${label}`
+                : who,
+      };
       const tx = addTransaction({
-        title: cfg.kind === 'withdrawal' ? `Retrait ${label}` : who,
-        subtitle: cfg.kind === 'in' ? `Reçu via ${label}` : cfg.kind === 'withdrawal' ? `Retrait · ${who}` : `Envoyé via ${label}`,
-        category: 'Revenus & Virements',
-        type: cfg.kind === 'in' ? 'transfer_in' : cfg.kind === 'withdrawal' ? 'withdrawal' : 'transfer_out',
-        amount: isIn ? amount : -amount,
-        status: immediateStatus,
-        icon: isIn ? 'ArrowDownLeft' : 'ArrowUpRight',
-        brandLogo: platformLogo(cfg.platform),
-        sender: isIn ? contact : undefined,
-        recipient: isIn ? undefined : contact,
-        recipientPhone: isIn ? undefined : cfg.phone?.trim() || undefined,
+        title: base.title,
+        subtitle:
+          kind === 'in'
+            ? `Reçu via ${label}`
+            : kind === 'deposit'
+              ? `Dépôt · ${who}`
+              : kind === 'withdrawal'
+                ? `Retrait · ${who}`
+                : kind === 'purchase'
+                  ? `Achat · ${merchant?.kind ?? 'Commerce'}`
+                  : `Envoyé via ${label}`,
+        category: kind === 'purchase' ? 'Loisirs & Shopping' : 'Revenus & Virements',
+        type: kind === 'in' ? 'transfer_in' : kind === 'deposit' ? 'deposit' : kind === 'withdrawal' ? 'withdrawal' : kind === 'purchase' ? 'card_payment' : 'transfer_out',
+        amount: outgoing ? -amount : amount,
+        status: scheduled ? 'pending' : outcome,
+        icon: kind === 'purchase' ? 'ShoppingBag' : outgoing ? 'ArrowUpRight' : 'ArrowDownLeft',
+        brandLogo: kind === 'purchase' ? cfg.platform : platformLogo(cfg.platform),
+        sender: !outgoing ? contact : undefined,
+        recipient: outgoing ? (kind === 'purchase' ? base.title : contact) : undefined,
+        recipientPhone: outgoing && kind !== 'purchase' ? cfg.phone?.trim() || undefined : undefined,
         fee,
-        paymentMethod: label,
+        paymentMethod: kind === 'purchase' ? 'Carte Payzed' : label,
         isSimulated: true,
         sim,
         timestamp: backdated ? cfg.timestamp : undefined,
-        // Solde : entrée créditée seulement si réussie immédiatement ; échec immédiat sans effet
-        skipBalance: isIn ? immediateStatus !== 'completed' : !debitNow,
+        // Programmée ou échouée : aucun effet sur le solde maintenant
+        skipBalance: scheduled || outcome === 'failed',
       });
 
-      if (backdated) showToast("Opération ajoutée à l'historique");
-      else if (delay === 0) {
-        const d = describe(tx, immediateStatus);
-        notify(tx, d.title, d.message);
+      if (backdated) {
+        showToast("Opération ajoutée à l'historique");
+      } else if (scheduled) {
+        // Notification système à l'heure d'arrivée (même app fermée)
+        void notifyAt(tx.id, operationMessage({ ...tx, status: outcome }), sim.resolveAt);
+      } else {
+        const newBalance = outcome === 'completed' ? balanceRef.current + deltaOf(tx) : undefined;
+        showBanner(tx, newBalance);
+        void notifyNow(tx.id, operationMessage(tx, newBalance));
       }
       return null;
     },
-    [addTransaction, notify, platformLabel, platformLogo, showToast],
+    [addTransaction, showBanner, platformLabel, platformLogo, showToast],
   );
 
   const cancelSim = useCallback(
@@ -311,10 +353,12 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!tx?.sim || tx.sim.settled || settling.current.has(txId)) return;
       settling.current.add(txId);
       if (tx.sim.held > 0) adjustBalance(tx.sim.held);
-      updateTransaction(txId, { status: 'cancelled', sim: { ...tx.sim, settled: true } });
-      showToast(tx.sim.held > 0 ? 'Opération annulée, montant recrédité' : 'Opération annulée');
+      void cancelNotification(txId);
+      // Une opération programmée annulée n'a jamais existé pour l'utilisateur
+      removeTransactions([txId]);
+      showToast('Opération programmée annulée');
     },
-    [adjustBalance, updateTransaction, showToast],
+    [adjustBalance, removeTransactions, showToast],
   );
 
   const purgeSims = useCallback(() => {
@@ -323,9 +367,11 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
     for (const tx of txRef.current) {
       if (!tx.isSimulated) continue;
       ids.push(tx.id);
-      const fee = tx.amount < 0 ? tx.fee || 0 : 0;
-      if (tx.sim && !tx.sim.settled) delta += tx.sim.held; // en cours : on rend le montant bloqué
-      else if (tx.status === 'completed') delta += tx.amount > 0 ? -tx.amount : Math.abs(tx.amount) + fee;
+      if (tx.sim && !tx.sim.settled) {
+        delta += tx.sim.held; // ancien format : montant bloqué rendu
+        void cancelNotification(tx.id);
+      } else if (tx.status === 'completed' && !(tx.sim && tx.sim.held > 0)) delta -= deltaOf(tx);
+      else if (tx.status === 'completed' && tx.sim && tx.sim.held > 0) delta += tx.sim.held;
     }
     ids.forEach((id) => settling.current.add(id));
     adjustBalance(delta);
@@ -344,6 +390,7 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         cancelSim,
         activeSims,
         purgeSims,
+        announce,
         customPlatforms,
         addCustomPlatform,
         removeCustomPlatform,

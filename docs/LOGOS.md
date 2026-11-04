@@ -1,4 +1,4 @@
-# Inventaire des logos — Payzed 1.7.0
+# Inventaire des logos — Payzed 1.8.0
 
 Source de vérité : `src/data/catalog.ts` (opérateurs → logo, services → opérateur).
 Affichage : composant unique `src/components/common/BrandLogo.tsx` (normalisation automatique).
@@ -46,12 +46,26 @@ Affichage : composant unique `src/components/common/BrandLogo.tsx` (normalisatio
 | Google | Gemini | `logos/gemini.svg` | Projet | ✅ |
 | Visa | Carte | `logos/visa-white.svg` | Simple Icons | ✅ |
 | Wizall | Wizall Money | `logos/tiles/wizall.png` | Fourni par le propriétaire | ✅ |
-| Société Générale Sénégal | Virement | — | — | ⏳ envoyé mais non reçu comme fichier : à renvoyer |
+| Société Générale Sénégal | Virement | `logos/tiles/sgsn.png` | Fourni par le propriétaire (`design/logos-source/societe-generale.jpg`) | ✅ |
 | UBA | Virement | `logos/tiles/uba.png` | Fourni par le propriétaire (coins arrondis retirés) | ✅ |
-| Bank of Africa | Virement | — | — | ⏳ envoyé mais non reçu comme fichier : à renvoyer |
-| Ria | Transfert international | — | — | ⏳ envoyé par le propriétaire mais non reçu comme fichier : à renvoyer (fond orange carré demandé) |
+| Bank of Africa | Virement | `logos/tiles/boa.png` | Fourni par le propriétaire (`design/logos-source/boa.png`) | ✅ |
+| Ria | Transfert international | `logos/tiles/ria.png` | Fourni par le propriétaire, posé sur un carré orange de la marque | ✅ |
 | Canal+ | Abonnement TV | `logos/tiles/canalplus.png` | Fourni par le propriétaire | ✅ |
 | StarTimes | Abonnement TV | `logos/tiles/startimes.png` | Fourni par le propriétaire (symbole isolé) | ✅ |
+
+## Commerçants (achats simulés dans SIM)
+
+| Commerçant | Fichier affiché | Provenance | État |
+|---|---|---|---|
+| Auchan | `logos/tiles/merchant-auchan.svg` | Simple Icons (#D6180B sur fond blanc) | ✅ |
+| Apple | `logos/tiles/merchant-apple.svg` | Simple Icons | ✅ |
+| Nvidia | `logos/tiles/merchant-nvidia.svg` | Simple Icons (#76B900 sur fond blanc) | ✅ |
+| Yum Yum | — | — | ⏳ repère neutre (initiales) : logo officiel à fournir |
+| Cinéma Pathé | — | — | ⏳ repère neutre (initiales) : logo officiel à fournir |
+| Café de Rome | — | — | ⏳ repère neutre (initiales) : logo officiel à fournir |
+
+Les commerçants sont déclarés dans `MERCHANTS` (`src/data/catalog.ts`) ; même règle que pour les opérateurs : déposer le
+fichier officiel dans `public/logos/tiles/` puis renseigner `logo` et `source`.
 
 **Pourquoi certains logos manquent :** les sites officiels et Wikimedia ne sont pas accessibles depuis l'environnement de
 développement utilisé ; seuls les fichiers déjà présents dans le projet et la bibliothèque Simple Icons (installée via npm)

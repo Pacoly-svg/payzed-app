@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Copy, Store, Wallet } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
+import { useDemo } from '../../context/DemoContext';
 import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { feeFor } from '../../utils/fees';
@@ -16,6 +17,7 @@ const WALLETS = servicesIn('mobile_money');
 const newCode = () => String(Math.floor(100000 + Math.random() * 900000)).replace(/(\d{3})(\d{3})/, '$1 $2');
 
 export const WithdrawModal: React.FC = () => {
+  const { announce } = useDemo();
   const { setActiveModal, modalParams, currency, balance, user, addTransaction, showToast } = useBanking();
   const preset = findService(modalParams.provider);
   const [mode, setMode] = useState<'wallet' | 'agent'>('wallet');
@@ -39,7 +41,7 @@ export const WithdrawModal: React.FC = () => {
   const expires = new Date(Date.now() + 86_400_000).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
   const execute = () => {
-    addTransaction({
+    const tx = addTransaction({
       title: mode === 'agent' ? 'Retrait chez un agent' : `Retrait vers ${walletName}`,
       subtitle: mode === 'agent' ? `Code ${code} · valable 24 h` : number,
       category: 'Revenus & Virements',
@@ -53,6 +55,7 @@ export const WithdrawModal: React.FC = () => {
       paymentMethod: mode === 'agent' ? 'Agent Payzed' : walletName,
       code: mode === 'agent' ? code : undefined,
     });
+    announce(tx, balance - (value + fee));
     triggerSuccessConfetti();
     setStep('done');
   };

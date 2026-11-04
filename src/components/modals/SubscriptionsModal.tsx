@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Repeat } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
+import { useDemo } from '../../context/DemoContext';
 import { formatCurrency } from '../../utils/formatters';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
@@ -92,12 +93,13 @@ export const SubscriptionsModal: React.FC = () => {
 
 const SubscriptionDetail: React.FC<{ sub: SubscriptionItem; onBack: () => void; onClose: () => void }> = ({ sub, onBack, onClose }) => {
   const { toggleSubscription, removeSubscription, addTransaction, balance, showToast } = useBanking();
+  const { announce } = useDemo();
   const paused = sub.status === 'paused';
 
   const payNow = () => {
     const fee = feeFor(sub.amount);
     if (sub.amount + fee > balance) return showToast('Solde insuffisant (frais compris)');
-    addTransaction({
+    const tx = addTransaction({
       title: sub.name,
       subtitle: 'Abonnement',
       category: 'Services & Abonnements',
@@ -110,6 +112,7 @@ const SubscriptionDetail: React.FC<{ sub: SubscriptionItem; onBack: () => void; 
       fee,
       paymentMethod: 'Carte Payzed',
     });
+    announce(tx, balance - sub.amount - fee);
     showToast(`${sub.name} payé · frais ${formatCurrency(fee, 'XOF')}`);
   };
 

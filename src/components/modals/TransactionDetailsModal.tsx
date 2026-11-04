@@ -109,7 +109,7 @@ export const TransactionDetailsModal: React.FC = () => {
           </span>
         )}
         <p className="mt-4 text-[15px] font-semibold">{tx.title}</p>
-        <p className={`mt-1 text-[32px] font-extrabold tracking-tight ${tx.amount > 0 ? 'text-emerald-600' : ''}`}>
+        <p className={`mt-1 text-[32px] font-extrabold tracking-tight ${tx.status === 'failed' ? 'text-red-600 line-through decoration-2' : ''}`}>
           {formatCurrency(tx.amount, tx.currency, { showSign: true })}
         </p>
         <p className="text-[13px] text-neutral-500 mt-0.5">{tx.subtitle}</p>

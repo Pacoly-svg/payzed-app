@@ -43,6 +43,9 @@ interface BankingContextType {
   setActiveTab: (tab: TabType) => void;
   isBalanceHidden: boolean;
   toggleHideBalance: () => void;
+  /** Historique entièrement masqué (œil de l'historique). */
+  isHistoryHidden: boolean;
+  toggleHistoryHidden: () => void;
 
   // Sécurité
   isLocked: boolean;
@@ -85,6 +88,8 @@ interface BankingContextType {
   /** Ajustement de solde lié au règlement d'une opération (moteur SIM). */
   adjustBalance: (delta: number) => void;
   toggleArchiveTransaction: (id: string) => void;
+  /** Masquer / réafficher plusieurs opérations dans l'historique. */
+  setArchived: (ids: string[], archived: boolean) => void;
   selectedTransaction: Transaction | null;
   setSelectedTransaction: (tx: Transaction | null) => void;
 
@@ -168,6 +173,7 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [activeTab, setActiveTabState] = useState<TabType>('comptes');
   const [isBalanceHidden, setIsBalanceHidden] = useState<boolean>(() => load('hide_balance', false));
+  const [isHistoryHidden, setIsHistoryHidden] = useState<boolean>(() => load('hide_history', false));
 
   const [isLocked, setIsLocked] = useState(true);
   const [pinHash, setPinHash] = useState<string>(() => {
@@ -205,6 +211,7 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Persistance
   useEffect(() => save('hide_balance', isBalanceHidden), [isBalanceHidden]);
+  useEffect(() => save('hide_history', isHistoryHidden), [isHistoryHidden]);
   useEffect(() => save('pin_hash', pinHash), [pinHash]);
   useEffect(() => save('test_mode', testMode), [testMode]);
   useEffect(() => save('biometrics', isBiometricsEnabled), [isBiometricsEnabled]);
@@ -265,6 +272,7 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const toggleHideBalance = useCallback(() => setIsBalanceHidden((p) => !p), []);
+  const toggleHistoryHidden = useCallback(() => setIsHistoryHidden((p) => !p), []);
 
   /* ---------- Profil & carte ---------- */
 
@@ -331,6 +339,11 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Débit = montant + frais (les frais ne s'appliquent qu'aux sorties)
     if (!skipBalance) setBalance((prev) => prev + tx.amount - (tx.amount < 0 ? tx.fee || 0 : 0));
     return newTx;
+  }, []);
+
+  const setArchived = useCallback((ids: string[], archived: boolean) => {
+    const set = new Set(ids);
+    setTransactions((prev) => prev.map((t) => (set.has(t.id) ? { ...t, isArchived: archived } : t)));
   }, []);
 
   const updateTransaction = useCallback((id: string, patch: Partial<Transaction>) => {
@@ -487,6 +500,8 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setActiveTab,
         isBalanceHidden,
         toggleHideBalance,
+        isHistoryHidden,
+        toggleHistoryHidden,
         isLocked,
         unlockApp,
         verifyPin,
@@ -516,6 +531,7 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         removeTransactions,
         adjustBalance,
         toggleArchiveTransaction,
+        setArchived,
         selectedTransaction,
         setSelectedTransaction,
         subscriptions,

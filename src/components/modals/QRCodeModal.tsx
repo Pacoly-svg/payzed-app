@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { Camera, Check, Copy, Share2 } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
+import { useDemo } from '../../context/DemoContext';
 import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { Sheet } from '../common/Sheet';
@@ -195,6 +196,7 @@ const Scanner: React.FC<{ onResult: (p: Payee) => void }> = ({ onResult }) => {
 };
 
 const PayFlow: React.FC<{ payee: Payee; onClose: () => void; onRescan: () => void }> = ({ payee, onClose, onRescan }) => {
+  const { announce } = useDemo();
   const { balance, addTransaction } = useBanking();
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState<'form' | 'review' | 'done'>('form');
@@ -205,7 +207,7 @@ const PayFlow: React.FC<{ payee: Payee; onClose: () => void; onRescan: () => voi
   const initials = payee.name.split(/\s+/).map((p) => p[0] ?? '').join('').slice(0, 2).toUpperCase();
 
   const execute = () => {
-    addTransaction({
+    const tx = addTransaction({
       title: payee.name,
       subtitle: 'Paiement par QR code',
       category: 'Revenus & Virements',
@@ -218,6 +220,7 @@ const PayFlow: React.FC<{ payee: Payee; onClose: () => void; onRescan: () => voi
       fee,
       paymentMethod: 'QR code Payzed',
     });
+    announce(tx, balance - (value + fee));
     triggerSuccessConfetti();
     setStep('done');
   };

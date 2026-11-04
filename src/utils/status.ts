@@ -10,16 +10,18 @@ export const STATUS_LABEL: Record<TransactionStatus, string> = {
 
 /** Couleurs des statuts (réservées aux statuts, toujours accompagnées d'un libellé). */
 export const STATUS_STYLE: Record<TransactionStatus, string> = {
-  pending: 'bg-amber-100 text-amber-800',
-  processing: 'bg-blue-100 text-blue-800',
-  completed: 'bg-emerald-100 text-emerald-800',
+  pending: 'bg-neutral-100 text-neutral-700',
+  processing: 'bg-neutral-200 text-neutral-800',
+  completed: 'bg-neutral-100 text-neutral-800',
   failed: 'bg-red-100 text-red-700',
   cancelled: 'bg-neutral-200 text-neutral-700',
 };
 
 /** L'opération compte-t-elle dans les dépenses / revenus (Stats, carte) ? */
-export const countsAsMoved = (t: Transaction) =>
-  t.status === 'completed' || ((t.status === 'pending' || t.status === 'processing') && t.amount < 0);
+export const countsAsMoved = (t: Transaction) => t.status === 'completed' && !(t.sim && !t.sim.settled);
+
+/** Visible dans l'historique ? (les opérations programmées n'existent qu'à leur arrivée) */
+export const isVisibleInHistory = (t: Transaction) => !(t.sim && !t.sim.settled) && t.status !== 'cancelled';
 
 /** 90061000 → « 1 j 1 h », 125000 → « 2 min 5 s ». */
 export function formatDuration(ms: number): string {

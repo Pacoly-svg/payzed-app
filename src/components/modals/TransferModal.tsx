@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ScanLine } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
+import { useDemo } from '../../context/DemoContext';
 import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { feeFor } from '../../utils/fees';
@@ -23,6 +24,7 @@ const CONTACTS = [
 const initials = (n: string) => n.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 
 export const TransferModal: React.FC = () => {
+  const { announce } = useDemo();
   const { setActiveModal, modalParams, currency, balance, addTransaction } = useBanking();
   const preset = findService(modalParams.provider);
   const presetIsRail = preset && ['mobile_money', 'banks', 'transfers'].includes(preset.category);
@@ -57,7 +59,7 @@ export const TransferModal: React.FC = () => {
   const recipientLabel = isBank || isIntl ? phone.trim() : formatSnPhone(phone);
 
   const execute = () => {
-    addTransaction({
+    const tx = addTransaction({
       title: name.trim(),
       subtitle: `Envoi via ${railLabel}`,
       category: 'Revenus & Virements',
@@ -71,6 +73,7 @@ export const TransferModal: React.FC = () => {
       fee,
       paymentMethod: railLabel,
     });
+    announce(tx, balance - (value + fee));
     triggerSuccessConfetti();
     setStep('done');
   };

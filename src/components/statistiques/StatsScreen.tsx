@@ -117,7 +117,7 @@ export const StatsScreen: React.FC = () => {
         <Row
           icon={<IconBox><ArrowDownLeft className="w-5 h-5" /></IconBox>}
           title="Reçu"
-          trailing={<span className="text-[17px] font-bold text-emerald-600 whitespace-nowrap">+{formatCurrency(data.income, 'XOF')}</span>}
+          trailing={<span className="text-[17px] font-bold whitespace-nowrap">+{formatCurrency(data.income, 'XOF')}</span>}
         />
         <Row
           icon={<IconBox><ArrowUpRight className="w-5 h-5" /></IconBox>}

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useBanking } from '../../context/BankingContext';
+import { useDemo } from '../../context/DemoContext';
 import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { BrandLogo } from '../common/BrandLogo';
@@ -21,6 +22,7 @@ const ACCOUNTING: Partial<Record<CategoryId, { category: TransactionCategory; ic
 };
 
 export const BillsModal: React.FC = () => {
+  const { announce } = useDemo();
   const { setActiveModal, modalParams, currency, balance, addTransaction } = useBanking();
   const preset = findService(modalParams.provider);
   const startCat = preset && BILL_CATEGORIES.some((c) => c.id === preset.category) ? preset.category : 'electricity';
@@ -57,7 +59,7 @@ export const BillsModal: React.FC = () => {
   };
 
   const execute = () => {
-    addTransaction({
+    const tx = addTransaction({
       title: bill.name,
       subtitle: `Réf. ${reference.trim()}`,
       category: acc.category,
@@ -70,6 +72,7 @@ export const BillsModal: React.FC = () => {
       fee,
       paymentMethod: 'Compte Payzed',
     });
+    announce(tx, balance - (value + fee));
     triggerSuccessConfetti();
     setStep('done');
   };
