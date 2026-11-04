@@ -86,8 +86,9 @@ export async function renderReceipt(tx: Transaction, holderName: string): Promis
   ctx.font = `600 34px ${FONT}`;
   ctx.fillText('Reçu de paiement', W / 2, 240);
 
-  // Pastille statut
-  ctx.fillStyle = '#000';
+  // Pastille statut (coche uniquement si l'opération a réellement réussi)
+  const ok = tx.status === 'completed';
+  ctx.fillStyle = ok ? '#000' : tx.status === 'failed' ? '#DC2626' : '#A1A1AA';
   ctx.beginPath();
   ctx.arc(W / 2, 320, 44, 0, Math.PI * 2);
   ctx.fill();
@@ -96,18 +97,33 @@ export async function renderReceipt(tx: Transaction, holderName: string): Promis
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.moveTo(W / 2 - 19, 321);
-  ctx.lineTo(W / 2 - 5, 335);
-  ctx.lineTo(W / 2 + 21, 307);
+  if (ok) {
+    ctx.moveTo(W / 2 - 19, 321);
+    ctx.lineTo(W / 2 - 5, 335);
+    ctx.lineTo(W / 2 + 21, 307);
+  } else {
+    ctx.moveTo(W / 2, 298);
+    ctx.lineTo(W / 2, 326);
+    ctx.moveTo(W / 2, 343);
+    ctx.lineTo(W / 2, 343.5);
+  }
   ctx.stroke();
 
   // Montant
   ctx.fillStyle = '#000';
   ctx.font = `800 92px ${FONT}`;
   ctx.fillText(`${isIn ? '+' : '-'}${formatCurrency(amount, tx.currency)}`, W / 2, 460);
-  ctx.fillStyle = '#16A34A';
+  const STATUS_TEXT: Record<Transaction['status'], [string, string]> = {
+    completed: [isIn ? 'Argent reçu' : 'Paiement réussi', '#16A34A'],
+    pending: ['En attente', '#B45309'],
+    processing: ['En cours de traitement', '#1D4ED8'],
+    failed: ['Opération échouée', '#DC2626'],
+    cancelled: ['Opération annulée', '#71717A'],
+  };
+  const [statusText, statusColor] = STATUS_TEXT[tx.status];
+  ctx.fillStyle = statusColor;
   ctx.font = `700 32px ${FONT}`;
-  ctx.fillText(isIn ? 'Argent reçu' : 'Paiement réussi', W / 2, 512);
+  ctx.fillText(statusText, W / 2, 512);
 
   // Lignes
   let y = 590;

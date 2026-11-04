@@ -3,14 +3,15 @@ import { ScanLine } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
+import { feeFor } from '../../utils/fees';
+import { formatSnPhone, isAccount, isEmail, isIntlPhone, isName, isSnMobile } from '../../utils/validators';
+import { findService, servicesIn } from '../../data/catalog';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
-import { AmountField, Button, ChoiceGrid, FeeSummary, Field, SuccessView, TextLink, parseAmount } from '../ui';
-import { feeFor } from '../../utils/fees';
-import { findProvider, providersIn } from '../../data/catalog';
+import { AmountField, Button, ChoiceGrid, FeeSummary, Field, ReviewView, SuccessView, TextLink, parseAmount } from '../ui';
 
-/** Moyens d'envoi affichés par défaut : Payzed + tous les Mobile Money du catalogue. */
-const BASE_RAILS = ['payzed', ...providersIn('mobile_money').map((p) => p.id)];
+/** Moyens d'envoi affichés par défaut : Payzed + tous les portefeuilles Mobile Money. */
+const BASE_RAILS = ['payzed', ...servicesIn('mobile_money').map((s) => s.id)];
 
 const CONTACTS = [
   { name: 'Fatou Sow', phone: '+221 77 319 88 12' },
@@ -21,66 +22,109 @@ const CONTACTS = [
 
 const initials = (n: string) => n.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase();
 
-const PayzedMark = () => (
-  <span className="w-8 h-8 rounded-lg bg-black flex items-center justify-center p-1.5">
-    <img src="/assets/logo/symbole-blanc.svg" alt="" className="w-full h-full" />
-  </span>
-);
-
 export const TransferModal: React.FC = () => {
-  const { setActiveModal, modalParams, currency, balance, addTransaction, showToast } = useBanking();
-  const preset = findProvider(modalParams.provider);
+  const { setActiveModal, modalParams, currency, balance, addTransaction } = useBanking();
+  const preset = findService(modalParams.provider);
+  const presetIsRail = preset && ['mobile_money', 'banks', 'transfers'].includes(preset.category);
   // Un service choisi dans « Tous les services » (banque, transfert…) s'ajoute aux choix
-  const [rails] = useState(() => (preset && !BASE_RAILS.includes(preset.id) ? [...BASE_RAILS, preset.id] : BASE_RAILS));
-  const [rail, setRail] = useState<string>(preset?.id ?? 'payzed');
+  const [rails] = useState(() => (presetIsRail && !BASE_RAILS.includes(preset.id) ? [...BASE_RAILS, preset.id] : BASE_RAILS));
+  const [rail, setRail] = useState<string>(presetIsRail ? preset.id : 'payzed');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
-  const [done, setDone] = useState<number | null>(null);
+  const [step, setStep] = useState<'form' | 'review' | 'done'>('form');
+  const [showErrors, setShowErrors] = useState(false);
 
   const close = () => setActiveModal(null);
-  const railProvider = rail === 'payzed' ? undefined : findProvider(rail);
-  const railLabel = railProvider?.name ?? 'Payzed';
-  const isBank = railProvider?.category === 'banks';
-  const isIntl = railProvider?.category === 'transfers';
+  const service = rail === 'payzed' ? undefined : findService(rail);
+  const railLabel = service?.name ?? 'Payzed';
+  const isBank = service?.category === 'banks';
+  const isIntl = service?.category === 'transfers';
   const value = parseAmount(amount);
   const fee = feeFor(value);
-  const ready = name.trim().length > 0 && value > 0 && value + fee <= balance;
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return showToast('Indiquez le bénéficiaire');
-    if (!(value > 0)) return showToast('Entrez un montant');
-    if (value + fee > balance) return showToast('Solde insuffisant (frais compris)');
+  const errors = {
+    name: !isName(name) && 'Indiquez le nom du bénéficiaire',
+    phone: isBank
+      ? !isAccount(phone) && 'Numéro de compte invalide (10 caractères minimum)'
+      : isIntl
+        ? !(isEmail(phone) || isIntlPhone(phone)) && 'Numéro ou e-mail invalide'
+        : !isSnMobile(phone) && 'Numéro sénégalais à 9 chiffres (ex. 77 123 45 67)',
+    amount: !(value > 0) ? 'Entrez un montant' : value + fee > balance ? 'Solde insuffisant (frais compris)' : false,
+  };
+  const valid = !errors.name && !errors.phone && !errors.amount;
+  const dirty = Boolean(name || phone || amount) && step !== 'done';
+  const recipientLabel = isBank || isIntl ? phone.trim() : formatSnPhone(phone);
+
+  const execute = () => {
     addTransaction({
       title: name.trim(),
       subtitle: `Envoi via ${railLabel}`,
+      category: 'Revenus & Virements',
       type: 'transfer_out',
       amount: -value,
       status: 'completed',
       icon: 'ArrowUpRight',
       brandLogo: rail === 'payzed' ? undefined : rail,
-      category: 'Revenus & Virements',
-      recipient: phone.trim() ? `${name.trim()} · ${phone.trim()}` : name.trim(),
-      recipientPhone: phone.trim() || undefined,
+      recipient: `${name.trim()} · ${recipientLabel}`,
+      recipientPhone: isBank ? undefined : recipientLabel,
       fee,
       paymentMethod: railLabel,
     });
     triggerSuccessConfetti();
-    setDone(value);
+    setStep('done');
   };
 
-  if (done !== null) {
+  if (step === 'done') {
     return (
       <Sheet title="Argent envoyé" onClose={close}>
-        <SuccessView amount={formatCurrency(done, currency)} text={`à ${name.trim()} via ${railLabel} · frais ${formatCurrency(feeFor(done), currency)}`} onDone={close} />
+        <SuccessView amount={formatCurrency(value, currency)} text={`à ${name.trim()} via ${railLabel} · frais ${formatCurrency(fee, currency)}`} onDone={close} />
+      </Sheet>
+    );
+  }
+
+  if (step === 'review') {
+    return (
+      <Sheet title="Vérifier l'envoi" onClose={close} onBack={() => setStep('form')} confirmClose>
+        <ReviewView
+          caption="Vous allez envoyer"
+          amount={formatCurrency(value, currency)}
+          rows={[
+            ['Bénéficiaire', name.trim()],
+            [isBank ? 'Compte' : isIntl ? 'Contact' : 'Numéro', recipientLabel],
+            ['Via', railLabel],
+            ['Frais (1 %)', formatCurrency(fee, currency)],
+            ['Total débité', <strong key="t">{formatCurrency(value + fee, currency)}</strong>],
+          ]}
+          confirmLabel="Confirmer l'envoi"
+          onConfirm={execute}
+          onEdit={() => setStep('form')}
+        />
       </Sheet>
     );
   }
 
   return (
-    <Sheet title="Envoyer de l'argent" onClose={close} footer={<Button type="submit" form="transfer-form" className="w-full" disabled={!ready}>{value > 0 ? `Envoyer ${formatCurrency(value, currency)}` : 'Envoyer'}</Button>}>
-      <form id="transfer-form" onSubmit={submit} className="space-y-5">
+    <Sheet
+      title="Envoyer de l'argent"
+      onClose={close}
+      confirmClose={dirty}
+      footer={
+        <Button type="submit" form="transfer-form" className="w-full">
+          Continuer
+        </Button>
+      }
+    >
+      <form
+        id="transfer-form"
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          setShowErrors(true);
+          if (valid) setStep('review');
+        }}
+        className="space-y-5"
+      >
         <Button variant="secondary" className="w-full" icon={<ScanLine className="w-5 h-5" />} onClick={() => setActiveModal('scan')}>
           Scanner un QR code
         </Button>
@@ -99,16 +143,10 @@ export const TransferModal: React.FC = () => {
                   }}
                   className="flex flex-col items-center gap-1.5 shrink-0 w-16 active:scale-95 transition-transform"
                 >
-                  <span
-                    className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-[15px] transition-colors ${
-                      active ? 'bg-black text-white' : 'bg-neutral-100'
-                    }`}
-                  >
+                  <span className={`w-14 h-14 rounded-full flex items-center justify-center font-bold text-[15px] transition-colors ${active ? 'bg-black text-white' : 'bg-neutral-100'}`}>
                     {initials(c.name)}
                   </span>
-                  <span className={`text-[13px] truncate w-full text-center ${active ? 'font-bold' : 'font-medium text-neutral-600'}`}>
-                    {c.name.split(' ')[0]}
-                  </span>
+                  <span className={`text-[13px] truncate w-full text-center ${active ? 'font-bold' : 'font-medium text-neutral-600'}`}>{c.name.split(' ')[0]}</span>
                 </button>
               );
             })}
@@ -122,14 +160,22 @@ export const TransferModal: React.FC = () => {
             onChange={setRail}
             options={rails.map((id) => ({
               id,
-              label: id === 'payzed' ? 'Payzed' : findProvider(id)?.name ?? id,
-              icon: id === 'payzed' ? <PayzedMark /> : <BrandLogo brand={id} size={32} className="rounded-lg" />,
+              label: id === 'payzed' ? 'Payzed' : findService(id)?.name ?? id,
+              icon: <BrandLogo brand={id} size={32} className="rounded-lg" />,
             }))}
           />
           <TextLink onClick={() => setActiveModal('services')}>Banques et transferts internationaux →</TextLink>
         </div>
 
-        <Field label="Bénéficiaire" placeholder="Nom et prénom" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
+        <Field
+          label="Bénéficiaire"
+          placeholder="Nom et prénom"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoComplete="off"
+          enterKeyHint="next"
+          error={showErrors && errors.name}
+        />
         <Field
           label={isBank ? 'N° de compte (RIB)' : isIntl ? 'Numéro ou e-mail' : 'Numéro'}
           type={isBank || isIntl ? 'text' : 'tel'}
@@ -138,8 +184,14 @@ export const TransferModal: React.FC = () => {
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           autoComplete="off"
+          enterKeyHint="next"
+          error={showErrors && errors.phone}
         />
-        <AmountField value={amount} onChange={setAmount} hint={`Disponible : ${formatCurrency(balance, currency)}`} />
+        <AmountField
+          value={amount}
+          onChange={setAmount}
+          hint={showErrors && errors.amount ? <span className="text-red-600">{errors.amount}</span> : `Disponible : ${formatCurrency(balance, currency)}`}
+        />
         {value > 0 && <FeeSummary amount={value} fee={fee} balance={balance} />}
       </form>
     </Sheet>

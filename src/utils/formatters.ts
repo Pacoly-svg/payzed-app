@@ -89,17 +89,6 @@ export function formatCurrency(
 /**
  * Convert an amount from one currency to another using reference rates
  */
-export function convertCurrency(
-  amount: number,
-  from: CurrencyCode,
-  to: CurrencyCode
-): number {
-  if (from === to) return amount;
-  const inEUR = amount / CURRENCIES[from].exchangeRateToEUR;
-  const converted = inEUR * CURRENCIES[to].exchangeRateToEUR;
-  return to === 'XOF' ? Math.round(converted) : Math.round(converted * 100) / 100;
-}
-
 /**
  * Format date in French fintech style
  */

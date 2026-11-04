@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Delete, Fingerprint } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { haptic } from '../../utils/haptics';
+import { BACK_PRIORITY, leaveApp, useBackHandler } from '../../utils/backStack';
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
@@ -11,6 +12,16 @@ export const AppPinLock: React.FC = () => {
   const [error, setError] = useState(false);
   const [scanning, setScanning] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Retour sur l'écran de verrouillage : l'app passe en arrière-plan (jamais de contournement du code)
+  useBackHandler(
+    () => {
+      void leaveApp();
+      return true;
+    },
+    true,
+    BACK_PRIORITY.lock,
+  );
 
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);

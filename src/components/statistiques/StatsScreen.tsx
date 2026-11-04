@@ -4,6 +4,7 @@ import { useBanking } from '../../context/BankingContext';
 import { formatCurrency } from '../../utils/formatters';
 import { EmptyState, IconBox, List, PageTitle, Row, SectionTitle, Segmented } from '../ui';
 import type { Transaction } from '../../types/banking';
+import { countsAsMoved } from '../../utils/status';
 
 type Period = '7d' | '30d' | '12m';
 
@@ -68,7 +69,7 @@ export const StatsScreen: React.FC = () => {
   const data = useMemo(() => {
     const buckets = buildBuckets(period);
     const from = buckets[0].start;
-    const inRange = transactions.filter((t) => t.timestamp >= from && !isSavingsMove(t));
+    const inRange = transactions.filter((t) => t.timestamp >= from && !isSavingsMove(t) && countsAsMoved(t));
     const expenses = inRange.filter((t) => t.amount < 0);
     const income = inRange.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
     const spent = expenses.reduce((s, t) => s + cost(t), 0);

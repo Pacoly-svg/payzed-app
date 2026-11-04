@@ -1,13 +1,17 @@
 /*
- * Catalogue des opérateurs et services Payzed.
+ * Catalogue Payzed : OPÉRATEURS (identité, logo, provenance) et SERVICES (ce qu'on peut faire).
  *
- * ➜ Ajouter un service : une ligne dans PROVIDERS (id unique, nom, catégorie, logo).
- * ➜ Ajouter une catégorie : une ligne dans CATEGORIES (l'ordre = ordre d'affichage).
- * ➜ Logo : déposer un carré 160×160 (PNG ou SVG) dans public/logos/tiles/ puis
- *   renseigner `logo`. Sans logo officiel, renseigner `mono` + `bg` (monogramme).
+ * Un opérateur peut proposer plusieurs services dans des catégories différentes
+ * (ex. Orange → Orange Money, crédit Orange, Orange Fibre). Les écrans affichent des
+ * services ; les logos viennent de l'opérateur (ou du service s'il a sa propre marque).
  *
- * Tous les écrans (Envoyer, Crédit, Factures, Abonnements, SIM, « Tous les services »)
- * et toutes les icônes (BrandLogo) lisent ce fichier : rien d'autre à modifier.
+ * ➜ Nouvel opérateur : une ligne dans OPERATORS (+ logo carré 160×160 dans public/logos/tiles/).
+ * ➜ Nouveau service   : une ligne dans SERVICES (operatorId + catégorie).
+ * ➜ Nouvelle catégorie : une ligne dans CATEGORIES (l'ordre = ordre d'affichage).
+ *
+ * Règle logos : uniquement des fichiers officiels de provenance connue (voir `source`).
+ * Sans logo officiel vérifiable → `logo` absent : l'app affiche un repère neutre (initiales
+ * grises) et l'opérateur est listé dans public/logos/LOGOS.md comme « logo à fournir ».
  */
 
 export type CategoryId =
@@ -24,111 +28,146 @@ export type CategoryId =
   | 'insurance'
   | 'subscriptions';
 
-/** Ce que fait l'app quand on touche un service de cette catégorie. */
-export type ProviderAction = 'transfer' | 'topup' | 'bill' | 'subscription';
+/** Parcours ouvert quand on touche un service de cette catégorie. */
+export type ServiceAction = 'transfer' | 'topup' | 'bill' | 'subscription';
 
 export interface Category {
   id: CategoryId;
   label: string;
-  /** Nom d'icône lucide (voir CategoryIcon). */
+  /** Regroupement affiché dans « Tous les services ». */
+  group: 'Envoyer & recevoir' | 'Recharger' | 'Payer une facture' | 'Abonnements';
   icon: 'Wallet' | 'Landmark' | 'Globe' | 'Smartphone' | 'Zap' | 'Droplets' | 'Wifi' | 'Tv' | 'Car' | 'FileText' | 'ShieldCheck' | 'Repeat';
-  action: ProviderAction;
+  action: ServiceAction;
 }
 
-export interface Provider {
+/** Provenance d'un logo (traçabilité). */
+export type LogoSource =
+  | 'projet' // fichier officiel fourni dans le projet d'origine
+  | 'simple-icons' // bibliothèque Simple Icons (CC0), marques déposées de leurs propriétaires
+  | 'payzed'; // marque Payzed
+
+export interface Operator {
   id: string;
   name: string;
-  category: CategoryId;
-  /** Carré 160×160 dans /public. */
   logo?: string;
-  /** Le logo occupe tout le carré (cover) ou est centré avec marge (contain). */
+  /** cover : le logo remplit la case (fond de marque) · contain : centré avec marge. */
   fit?: 'cover' | 'contain';
-  /** Monogramme si aucun logo officiel n'est disponible. */
-  mono?: string;
-  bg?: string;
-  fg?: string;
-  /** Autres noms reconnus (minuscules) pour retrouver le logo à partir d'un libellé. */
+  source?: LogoSource;
+}
+
+export interface Service {
+  id: string;
+  operatorId: string;
+  name: string;
+  category: CategoryId;
+  /** Logo propre au service (sinon celui de l'opérateur). */
+  logo?: string;
+  fit?: 'cover' | 'contain';
   aliases?: string[];
   /** Factures : libellé du champ référence. */
   refLabel?: string;
 }
 
 export const CATEGORIES: Category[] = [
-  { id: 'mobile_money', label: 'Mobile Money', icon: 'Wallet', action: 'transfer' },
-  { id: 'banks', label: 'Banques', icon: 'Landmark', action: 'transfer' },
-  { id: 'transfers', label: "Transferts d'argent", icon: 'Globe', action: 'transfer' },
-  { id: 'telecom', label: 'Crédit & télécoms', icon: 'Smartphone', action: 'topup' },
-  { id: 'electricity', label: 'Électricité', icon: 'Zap', action: 'bill' },
-  { id: 'water', label: 'Eau', icon: 'Droplets', action: 'bill' },
-  { id: 'internet', label: 'Internet', icon: 'Wifi', action: 'bill' },
-  { id: 'tv', label: 'TV', icon: 'Tv', action: 'bill' },
-  { id: 'transport', label: 'Transport & péage', icon: 'Car', action: 'bill' },
-  { id: 'taxes', label: 'Impôts & taxes', icon: 'FileText', action: 'bill' },
-  { id: 'insurance', label: 'Assurances', icon: 'ShieldCheck', action: 'bill' },
-  { id: 'subscriptions', label: 'Abonnements', icon: 'Repeat', action: 'subscription' },
+  { id: 'mobile_money', label: 'Mobile Money', group: 'Envoyer & recevoir', icon: 'Wallet', action: 'transfer' },
+  { id: 'banks', label: 'Banques', group: 'Envoyer & recevoir', icon: 'Landmark', action: 'transfer' },
+  { id: 'transfers', label: "Transferts internationaux", group: 'Envoyer & recevoir', icon: 'Globe', action: 'transfer' },
+  { id: 'telecom', label: 'Crédit téléphone', group: 'Recharger', icon: 'Smartphone', action: 'topup' },
+  { id: 'electricity', label: 'Électricité', group: 'Payer une facture', icon: 'Zap', action: 'bill' },
+  { id: 'water', label: 'Eau', group: 'Payer une facture', icon: 'Droplets', action: 'bill' },
+  { id: 'internet', label: 'Internet', group: 'Payer une facture', icon: 'Wifi', action: 'bill' },
+  { id: 'tv', label: 'TV', group: 'Payer une facture', icon: 'Tv', action: 'bill' },
+  { id: 'transport', label: 'Péage', group: 'Payer une facture', icon: 'Car', action: 'bill' },
+  { id: 'taxes', label: 'Impôts', group: 'Payer une facture', icon: 'FileText', action: 'bill' },
+  { id: 'insurance', label: 'Assurances', group: 'Payer une facture', icon: 'ShieldCheck', action: 'bill' },
+  { id: 'subscriptions', label: 'Abonnements', group: 'Abonnements', icon: 'Repeat', action: 'subscription' },
 ];
 
-export const PROVIDERS: Provider[] = [
-  // Mobile Money
-  { id: 'wave', name: 'Wave', category: 'mobile_money', logo: '/logos/tiles/wave.png' },
-  { id: 'orange_money', name: 'Orange Money', category: 'mobile_money', logo: '/logos/orange.svg', aliases: ['orange money', 'om'] },
-  { id: 'mixx', name: 'Mixx by Yas', category: 'mobile_money', logo: '/logos/yas.svg', fit: 'contain', aliases: ['mixx', 'free money'] },
-  { id: 'wizall', name: 'Wizall', category: 'mobile_money', mono: 'Wz', bg: '#0A4DA2', aliases: ['wizall money'] },
+const T = '/logos/tiles';
 
+export const OPERATORS: Operator[] = [
+  { id: 'payzed', name: 'Payzed', logo: '/assets/logo/symbole-blanc.svg', source: 'payzed' },
+  // Télécoms & Mobile Money
+  { id: 'wave', name: 'Wave', logo: `${T}/wave.png`, source: 'projet' },
+  { id: 'orange', name: 'Orange', logo: '/logos/orange.svg', source: 'projet' },
+  { id: 'yas', name: 'Yas', logo: '/logos/yas.svg', fit: 'contain', source: 'projet' },
+  { id: 'expresso', name: 'Expresso', logo: `${T}/expresso.png`, source: 'projet' },
+  { id: 'wizall', name: 'Wizall' },
   // Banques
-  { id: 'cbao', name: 'CBAO', category: 'banks', logo: '/logos/tiles/cbao.png', aliases: ['attijariwafa'] },
-  { id: 'ecobank', name: 'Ecobank', category: 'banks', logo: '/logos/tiles/ecobank.png' },
-  { id: 'sgbs', name: 'Société Générale', category: 'banks', logo: '/logos/tiles/sgbs.svg', aliases: ['societe generale', 'société générale', 'sgsn'] },
-  { id: 'uba', name: 'UBA', category: 'banks', mono: 'UBA', bg: '#D42E12', aliases: ['united bank for africa'] },
-  { id: 'boa', name: 'Bank of Africa', category: 'banks', mono: 'BOA', bg: '#00843D', aliases: ['bank of africa'] },
-
-  // Transferts d'argent
-  { id: 'westernunion', name: 'Western Union', category: 'transfers', logo: '/logos/tiles/westernunion.svg', aliases: ['western union'] },
-  { id: 'moneygram', name: 'MoneyGram', category: 'transfers', logo: '/logos/tiles/moneygram.svg' },
-  { id: 'ria', name: 'Ria', category: 'transfers', mono: 'Ria', bg: '#F26522', aliases: ['ria money'] },
-  { id: 'paypal', name: 'PayPal', category: 'transfers', logo: '/logos/paypal_icon.svg', fit: 'contain' },
-
-  // Crédit & télécoms
-  { id: 'orange', name: 'Orange', category: 'telecom', logo: '/logos/orange.svg' },
-  { id: 'yas', name: 'Yas', category: 'telecom', logo: '/logos/yas.svg', fit: 'contain', aliases: ['free'] },
-  { id: 'expresso', name: 'Expresso', category: 'telecom', logo: '/logos/tiles/expresso.png' },
-
-  // Électricité
-  { id: 'senelec', name: 'Senelec', category: 'electricity', logo: '/logos/tiles/senelec.png', refLabel: 'N° de compteur ou de facture' },
-  { id: 'woyofal', name: 'Woyofal', category: 'electricity', logo: '/logos/tiles/woyofal.png', refLabel: 'N° de compteur' },
-
-  // Eau
-  { id: 'seneau', name: "Sen'Eau", category: 'water', logo: '/logos/tiles/seneau.png', aliases: ["sen'eau", 'sen eau'], refLabel: 'N° de contrat' },
-
-  // Internet
-  { id: 'orange_fibre', name: 'Orange Fibre', category: 'internet', logo: '/logos/orange.svg', aliases: ['orange fibre', 'orange box'], refLabel: 'N° client' },
-  { id: 'yas_box', name: 'Yas Box', category: 'internet', logo: '/logos/yas.svg', fit: 'contain', aliases: ['yas box', 'yas fibre'], refLabel: 'N° client' },
-
+  { id: 'cbao', name: 'CBAO', logo: `${T}/cbao.png`, source: 'projet' },
+  { id: 'ecobank', name: 'Ecobank', logo: `${T}/ecobank.png`, source: 'projet' },
+  { id: 'sgsn', name: 'Société Générale Sénégal' },
+  { id: 'uba', name: 'UBA' },
+  { id: 'boa', name: 'Bank of Africa' },
+  // Transferts internationaux
+  { id: 'westernunion', name: 'Western Union', logo: `${T}/westernunion.svg`, source: 'simple-icons' },
+  { id: 'moneygram', name: 'MoneyGram', logo: `${T}/moneygram.svg`, source: 'simple-icons' },
+  { id: 'ria', name: 'Ria' },
+  { id: 'paypal', name: 'PayPal', logo: '/logos/paypal_icon.svg', fit: 'contain', source: 'projet' },
+  // Énergie, eau, péage, État, assurance
+  { id: 'senelec', name: 'Senelec', logo: `${T}/senelec.png`, source: 'projet' },
+  { id: 'seneau', name: "Sen'Eau", logo: `${T}/seneau.png`, source: 'projet' },
+  { id: 'secaa', name: 'SECAA (Eiffage)', logo: `${T}/rapido.png`, source: 'projet' },
+  { id: 'dgid', name: 'DGID', logo: `${T}/dgid.png`, source: 'projet' },
+  { id: 'axa', name: 'AXA', logo: '/logos/axa.svg', source: 'projet' },
   // TV
-  { id: 'canalplus', name: 'Canal+', category: 'tv', mono: 'C+', bg: '#000000', aliases: ['canal+', 'canal plus', 'canal'], refLabel: "N° d'abonné ou de décodeur" },
-  { id: 'startimes', name: 'StarTimes', category: 'tv', mono: 'ST', bg: '#E4002B', aliases: ['star times'], refLabel: 'N° de décodeur (Smartcard)' },
-
-  // Transport & péage
-  { id: 'rapido', name: 'Rapido', category: 'transport', logo: '/logos/tiles/rapido.png', aliases: ['eiffage', 'autoroute'], refLabel: 'N° de badge' },
-
-  // Impôts & taxes
-  { id: 'dgid', name: 'DGID', category: 'taxes', logo: '/logos/tiles/dgid.png', aliases: ['impot', 'impôts'], refLabel: "N° NINEA ou d'avis d'imposition" },
-
-  // Assurances
-  { id: 'axa', name: 'AXA', category: 'insurance', logo: '/logos/axa.svg', refLabel: 'N° de police' },
-
-  // Abonnements
-  { id: 'netflix', name: 'Netflix', category: 'subscriptions', logo: '/logos/netflix_icon.svg' },
-  { id: 'spotify', name: 'Spotify', category: 'subscriptions', logo: '/logos/spotify.svg' },
-  { id: 'youtube', name: 'YouTube Premium', category: 'subscriptions', logo: '/logos/tiles/youtube.svg', aliases: ['youtube'] },
-  { id: 'deezer', name: 'Deezer', category: 'subscriptions', logo: '/logos/tiles/deezer.svg' },
-  { id: 'applemusic', name: 'Apple Music', category: 'subscriptions', logo: '/logos/tiles/applemusic.svg', aliases: ['apple music'] },
-  { id: 'chatgpt', name: 'ChatGPT', category: 'subscriptions', logo: '/logos/chatgpt_icon.svg', aliases: ['openai'] },
-  { id: 'claude', name: 'Claude', category: 'subscriptions', logo: '/logos/claude.svg', aliases: ['anthropic'] },
-  { id: 'gemini', name: 'Gemini', category: 'subscriptions', logo: '/logos/gemini.svg', aliases: ['google'] },
+  { id: 'canalplus', name: 'Canal+' },
+  { id: 'startimes', name: 'StarTimes' },
+  // Abonnements numériques
+  { id: 'netflix', name: 'Netflix', logo: '/logos/netflix_icon.svg', source: 'projet' },
+  { id: 'spotify', name: 'Spotify', logo: '/logos/spotify.svg', source: 'projet' },
+  { id: 'youtube', name: 'YouTube', logo: `${T}/youtube.svg`, source: 'simple-icons' },
+  { id: 'deezer', name: 'Deezer', logo: `${T}/deezer.svg`, source: 'simple-icons' },
+  { id: 'apple', name: 'Apple', logo: `${T}/applemusic.svg`, source: 'simple-icons' },
+  { id: 'openai', name: 'OpenAI', logo: '/logos/chatgpt_icon.svg', source: 'projet' },
+  { id: 'anthropic', name: 'Anthropic', logo: '/logos/claude.svg', source: 'projet' },
+  { id: 'google', name: 'Google', logo: '/logos/gemini.svg', source: 'projet' },
 ];
 
-/* ---------- Recherche ---------- */
+export const SERVICES: Service[] = [
+  // Mobile Money
+  { id: 'wave', operatorId: 'wave', name: 'Wave', category: 'mobile_money' },
+  { id: 'orange_money', operatorId: 'orange', name: 'Orange Money', category: 'mobile_money', aliases: ['orange money', 'om'] },
+  { id: 'mixx', operatorId: 'yas', name: 'Mixx by Yas', category: 'mobile_money', aliases: ['mixx', 'free money'] },
+  { id: 'wizall', operatorId: 'wizall', name: 'Wizall Money', category: 'mobile_money', aliases: ['wizall'] },
+  // Banques
+  { id: 'cbao', operatorId: 'cbao', name: 'CBAO', category: 'banks', aliases: ['attijariwafa'] },
+  { id: 'ecobank', operatorId: 'ecobank', name: 'Ecobank', category: 'banks' },
+  { id: 'sgsn', operatorId: 'sgsn', name: 'Société Générale', category: 'banks', aliases: ['sgbs', 'societe generale', 'société générale'] },
+  { id: 'uba', operatorId: 'uba', name: 'UBA', category: 'banks', aliases: ['united bank for africa'] },
+  { id: 'boa', operatorId: 'boa', name: 'Bank of Africa', category: 'banks', aliases: ['bank of africa'] },
+  // Transferts internationaux
+  { id: 'westernunion', operatorId: 'westernunion', name: 'Western Union', category: 'transfers', aliases: ['western union'] },
+  { id: 'moneygram', operatorId: 'moneygram', name: 'MoneyGram', category: 'transfers' },
+  { id: 'ria', operatorId: 'ria', name: 'Ria', category: 'transfers', aliases: ['ria money'] },
+  { id: 'paypal', operatorId: 'paypal', name: 'PayPal', category: 'transfers' },
+  // Crédit téléphone
+  { id: 'orange', operatorId: 'orange', name: 'Orange', category: 'telecom' },
+  { id: 'yas', operatorId: 'yas', name: 'Yas', category: 'telecom', aliases: ['free'] },
+  { id: 'expresso', operatorId: 'expresso', name: 'Expresso', category: 'telecom' },
+  // Factures
+  { id: 'senelec', operatorId: 'senelec', name: 'Senelec', category: 'electricity', refLabel: 'N° de compteur ou de facture' },
+  { id: 'woyofal', operatorId: 'senelec', name: 'Woyofal', category: 'electricity', logo: `${T}/woyofal.png`, refLabel: 'N° de compteur' },
+  { id: 'seneau', operatorId: 'seneau', name: "Sen'Eau", category: 'water', aliases: ["sen'eau", 'sen eau'], refLabel: 'N° de contrat' },
+  { id: 'orange_fibre', operatorId: 'orange', name: 'Orange Fibre', category: 'internet', aliases: ['orange fibre', 'orange box'], refLabel: 'N° client' },
+  { id: 'yas_box', operatorId: 'yas', name: 'Yas Box', category: 'internet', aliases: ['yas box', 'yas fibre'], refLabel: 'N° client' },
+  { id: 'canalplus', operatorId: 'canalplus', name: 'Canal+', category: 'tv', aliases: ['canal+', 'canal plus'], refLabel: "N° d'abonné ou de décodeur" },
+  { id: 'startimes', operatorId: 'startimes', name: 'StarTimes', category: 'tv', aliases: ['star times'], refLabel: 'N° de décodeur (Smartcard)' },
+  { id: 'rapido', operatorId: 'secaa', name: 'Rapido', category: 'transport', aliases: ['eiffage', 'autoroute'], refLabel: 'N° de badge' },
+  { id: 'dgid', operatorId: 'dgid', name: 'DGID', category: 'taxes', aliases: ['impot', 'impôts'], refLabel: "N° NINEA ou d'avis d'imposition" },
+  { id: 'axa', operatorId: 'axa', name: 'AXA', category: 'insurance', refLabel: 'N° de police' },
+  // Abonnements
+  { id: 'netflix', operatorId: 'netflix', name: 'Netflix', category: 'subscriptions' },
+  { id: 'spotify', operatorId: 'spotify', name: 'Spotify', category: 'subscriptions' },
+  { id: 'youtube', operatorId: 'youtube', name: 'YouTube Premium', category: 'subscriptions', aliases: ['youtube'] },
+  { id: 'deezer', operatorId: 'deezer', name: 'Deezer', category: 'subscriptions' },
+  { id: 'applemusic', operatorId: 'apple', name: 'Apple Music', category: 'subscriptions', aliases: ['apple music'] },
+  { id: 'chatgpt', operatorId: 'openai', name: 'ChatGPT', category: 'subscriptions', aliases: ['openai'] },
+  { id: 'claude', operatorId: 'anthropic', name: 'Claude', category: 'subscriptions', aliases: ['anthropic'] },
+  { id: 'gemini', operatorId: 'google', name: 'Gemini', category: 'subscriptions', aliases: ['google'] },
+];
+
+/* ---------- Accès ---------- */
 
 const norm = (s: string) =>
   s
@@ -137,29 +176,45 @@ const norm = (s: string) =>
     .replace(/[̀-ͯ]/g, '')
     .trim();
 
+export const findOperator = (id: string | undefined) => OPERATORS.find((o) => o.id === id);
+export const categoryOf = (id: CategoryId) => CATEGORIES.find((c) => c.id === id)!;
+export const servicesIn = (category: CategoryId) => SERVICES.filter((s) => s.category === category);
+export const servicesOf = (operatorId: string) => SERVICES.filter((s) => s.operatorId === operatorId);
+export const BILL_CATEGORIES = CATEGORIES.filter((c) => c.action === 'bill');
+/** Opérateurs qui proposent au moins un service (vue « Par opérateur »). */
+export const SERVICE_OPERATORS = OPERATORS.filter((o) => SERVICES.some((s) => s.operatorId === o.id));
+
 /** Tous les noms reconnus, du plus long au plus court (« orange money » avant « orange »). */
-const LOOKUP: [string, Provider][] = PROVIDERS.flatMap((p) =>
-  [p.id, p.name, ...(p.aliases ?? [])].map((k) => [norm(k), p] as [string, Provider]),
-).sort((a, b) => b[0].length - a[0].length);
+const LOOKUP: [string, Service][] = SERVICES.flatMap((s) => [s.id, s.name, ...(s.aliases ?? [])].map((k) => [norm(k), s] as [string, Service])).sort(
+  (a, b) => b[0].length - a[0].length,
+);
 
 /** Retrouve un service à partir d'un id ou d'un libellé (« Netflix Premium » → Netflix). */
-export function findProvider(key: string | undefined | null): Provider | undefined {
+export function findService(key: string | undefined | null): Service | undefined {
   if (!key) return undefined;
   const k = norm(key);
   return LOOKUP.find(([alias]) => k === alias)?.[1] ?? LOOKUP.find(([alias]) => alias.length >= 3 && k.includes(alias))?.[1];
 }
 
-export const providersIn = (category: CategoryId) => PROVIDERS.filter((p) => p.category === category);
-export const categoryOf = (id: CategoryId) => CATEGORIES.find((c) => c.id === id)!;
-export const BILL_CATEGORIES = CATEGORIES.filter((c) => c.action === 'bill');
+/** Identité visuelle d'un service ou d'un opérateur (logo + nom). */
+export function brandOf(key: string): { name: string; logo?: string; fit?: 'cover' | 'contain' } | undefined {
+  const service = findService(key);
+  if (service) {
+    const op = findOperator(service.operatorId);
+    return { name: service.name, logo: service.logo ?? op?.logo, fit: service.logo ? service.fit : op?.fit };
+  }
+  const op = OPERATORS.find((o) => norm(o.id) === norm(key) || norm(o.name) === norm(key));
+  return op ? { name: op.name, logo: op.logo, fit: op.fit } : undefined;
+}
 
-export function searchProviders(query: string): Provider[] {
+export function searchServices(query: string): Service[] {
   const q = norm(query);
-  if (!q) return PROVIDERS;
-  return PROVIDERS.filter(
-    (p) =>
-      norm(p.name).includes(q) ||
-      (p.aliases ?? []).some((a) => norm(a).includes(q)) ||
-      norm(categoryOf(p.category).label).includes(q),
+  if (!q) return SERVICES;
+  return SERVICES.filter(
+    (s) =>
+      norm(s.name).includes(q) ||
+      (s.aliases ?? []).some((a) => norm(a).includes(q)) ||
+      norm(findOperator(s.operatorId)?.name ?? '').includes(q) ||
+      norm(categoryOf(s.category).label).includes(q),
   );
 }

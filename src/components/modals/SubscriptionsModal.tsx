@@ -7,7 +7,7 @@ import { Sheet } from '../common/Sheet';
 import { AmountField, Button, ChoiceGrid, EmptyState, Field, List, Row, parseAmount } from '../ui';
 import type { SubscriptionItem } from '../../types/banking';
 import { feeFor } from '../../utils/fees';
-import { findProvider, providersIn } from '../../data/catalog';
+import { findService, servicesIn } from '../../data/catalog';
 
 type View = { name: 'list' } | { name: 'detail'; id: string } | { name: 'add' };
 
@@ -23,7 +23,7 @@ const DEFAULT_PRICES: Record<string, number> = {
   gemini: 13000,
 };
 const SERVICES = [
-  ...providersIn('subscriptions').map((p) => ({ id: p.id, label: p.name, amount: DEFAULT_PRICES[p.id] ?? 0 })),
+  ...servicesIn('subscriptions').map((p) => ({ id: p.id, label: p.name, amount: DEFAULT_PRICES[p.id] ?? 0 })),
   { id: 'autre', label: 'Autre', amount: 0 },
 ];
 type ServiceId = string;
@@ -36,7 +36,7 @@ const nextMonth = () => {
 
 export const SubscriptionsModal: React.FC = () => {
   const { setActiveModal, modalParams, subscriptions } = useBanking();
-  const preset = findProvider(modalParams.provider);
+  const preset = findService(modalParams.provider);
   const [view, setView] = useState<View>(preset?.category === 'subscriptions' ? { name: 'add' } : { name: 'list' });
   const close = () => setActiveModal(null);
   const back = () => setView({ name: 'list' });

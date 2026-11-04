@@ -3,11 +3,13 @@ import { X } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { useDemo } from '../../context/DemoContext';
 import { BrandLogo } from './BrandLogo';
+import { BACK_PRIORITY, useBackHandler } from '../../utils/backStack';
 
 /** Notification qui descend du haut de l'écran (style notification système). */
 export const NotificationBanner: React.FC = () => {
   const { notification, dismissNotification } = useDemo();
   const { setSelectedTransaction, isLocked } = useBanking();
+  useBackHandler(() => dismissNotification(), Boolean(notification), BACK_PRIORITY.overlay);
   if (!notification) return null;
 
   const open = () => {

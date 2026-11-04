@@ -1,4 +1,6 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { decodePayload, type Payee } from './utils/payLink';
+import { BACK_PRIORITY, leaveApp, useBackHandler } from './utils/backStack';
 import { BankingProvider, useBanking } from './context/BankingContext';
 import { MobileFrame } from './components/common/MobileFrame';
 import { Header } from './components/common/Header';
@@ -21,6 +23,7 @@ const SubscriptionsModal = lazy(() => import('./components/modals/SubscriptionsM
 const BillsModal = lazy(() => import('./components/modals/BillsModal').then((m) => ({ default: m.BillsModal })));
 const TopUpModal = lazy(() => import('./components/modals/TopUpModal').then((m) => ({ default: m.TopUpModal })));
 const TransactionDetailsModal = lazy(() => import('./components/modals/TransactionDetailsModal').then((m) => ({ default: m.TransactionDetailsModal })));
+const WithdrawModal = lazy(() => import('./components/modals/WithdrawModal').then((m) => ({ default: m.WithdrawModal })));
 const ServicesModal = lazy(() => import('./components/modals/ServicesModal').then((m) => ({ default: m.ServicesModal })));
 const VaultsModal = lazy(() => import('./components/modals/VaultsModal').then((m) => ({ default: m.VaultsModal })));
 
@@ -28,6 +31,7 @@ const MODALS = {
   qr: QRCodeModal,
   scan: QRCodeModal,
   services: ServicesModal,
+  withdraw: WithdrawModal,
   transfer: TransferModal,
   subscriptions: SubscriptionsModal,
   bills: BillsModal,
@@ -48,8 +52,54 @@ const Screen: React.FC = () => {
 };
 
 const PayzedApp: React.FC = () => {
-  const { isLocked, activeTab, activeModal, selectedTransaction } = useBanking();
+  const { isLocked, activeTab, setActiveTab, activeModal, setActiveModal, selectedTransaction, showToast } = useBanking();
+
+  // Liens profonds payzed://pay?name=…&tel=… (QR scanné avec l'appareil photo, lien partagé)
+  const [pendingLink, setPendingLink] = useState<Payee | null>(null);
+  useEffect(() => {
+    let remove: (() => void) | undefined;
+    void (async () => {
+      const { Capacitor } = await import('@capacitor/core');
+      if (!Capacitor.isNativePlatform()) return;
+      const { App } = await import('@capacitor/app');
+      const handle = await App.addListener('appUrlOpen', ({ url }) => {
+        const payee = decodePayload(url);
+        if (payee) setPendingLink(payee);
+      });
+      remove = () => void handle.remove();
+    })();
+    return () => remove?.();
+  }, []);
+  // Ouvert seulement après déverrouillage par code PIN
+  useEffect(() => {
+    if (pendingLink && !isLocked) {
+      setActiveModal('scan', { payee: pendingLink });
+      setPendingLink(null);
+    }
+  }, [pendingLink, isLocked, setActiveModal]);
   const ActiveModal = activeModal ? MODALS[activeModal] : null;
+
+  // Retour sur l'écran principal : onglet → Accueil, puis double appui pour quitter
+  const lastBack = useRef(0);
+  useBackHandler(
+    () => {
+      if (activeTab !== 'comptes') {
+        setActiveTab('comptes');
+        return true;
+      }
+      const now = Date.now();
+      if (now - lastBack.current < 2000) {
+        lastBack.current = 0;
+        void leaveApp();
+      } else {
+        lastBack.current = now;
+        showToast('Appuyez encore sur Retour pour quitter');
+      }
+      return true;
+    },
+    true,
+    BACK_PRIORITY.root,
+  );
 
   return (
     <>

@@ -9,6 +9,8 @@ import { Sheet } from '../common/Sheet';
 import { ICONS } from '../comptes/RecentTransactions';
 import { Button, List, Row } from '../ui';
 import type { Transaction } from '../../types/banking';
+import { STATUS_LABEL, STATUS_STYLE, formatDuration } from '../../utils/status';
+import { useDemo } from '../../context/DemoContext';
 
 const ReceiptView: React.FC<{ tx: Transaction; onBack: () => void; onClose: () => void }> = ({ tx, onBack, onClose }) => {
   const { user, showToast } = useBanking();
@@ -55,7 +57,16 @@ const ReceiptView: React.FC<{ tx: Transaction; onBack: () => void; onClose: () =
 
 export const TransactionDetailsModal: React.FC = () => {
   const { selectedTransaction: tx, setSelectedTransaction, toggleArchiveTransaction, showToast } = useBanking();
+  const { cancelSim } = useDemo();
   const [copied, setCopied] = useState(false);
+  // Compte à rebours vivant tant qu'une opération SIM est en cours
+  const [, setTick] = useState(0);
+  const liveSim = Boolean(tx?.sim && !tx.sim.settled && tx.status !== 'cancelled');
+  useEffect(() => {
+    if (!liveSim) return;
+    const id = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [liveSim]);
   const [showReceipt, setShowReceipt] = useState(false);
   if (!tx) return null;
 
@@ -74,7 +85,11 @@ export const TransactionDetailsModal: React.FC = () => {
     }
   };
 
+  const unsettledSim = tx.sim && !tx.sim.settled && tx.status !== 'cancelled';
   const rows: [string, string | undefined][] = [
+    ['Statut', STATUS_LABEL[tx.status]],
+    ...(tx.code ? ([['Code de retrait', tx.code]] as [string, string][]) : []),
+    ...(unsettledSim ? ([['Résultat prévu', new Date(tx.sim!.resolveAt).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })]] as [string, string][]) : []),
     ['Date', formatTransactionDate(tx.timestamp)],
     [tx.amount > 0 ? 'De' : 'À', tx.amount > 0 ? tx.sender : tx.recipient],
     ['Moyen', tx.paymentMethod],
@@ -98,6 +113,12 @@ export const TransactionDetailsModal: React.FC = () => {
           {formatCurrency(tx.amount, tx.currency, { showSign: true })}
         </p>
         <p className="text-[13px] text-neutral-500 mt-0.5">{tx.subtitle}</p>
+        {tx.status !== 'completed' && (
+          <span className={`mt-3 text-[13px] font-bold px-3 py-1 rounded-full ${STATUS_STYLE[tx.status]}`}>
+            {STATUS_LABEL[tx.status]}
+            {unsettledSim && ` · ${formatDuration(tx.sim!.resolveAt - Date.now())}`}
+          </span>
+        )}
       </div>
 
       <List>
@@ -123,9 +144,21 @@ export const TransactionDetailsModal: React.FC = () => {
       </List>
 
       <div className="space-y-2 mt-5">
-        <Button className="w-full" icon={<FileText className="w-5 h-5" />} onClick={() => setShowReceipt(true)}>
-          Voir le reçu
-        </Button>
+        {unsettledSim ? (
+          <Button
+            variant="danger"
+            className="w-full"
+            onClick={() => {
+              cancelSim(tx.id);
+            }}
+          >
+            Annuler l'opération
+          </Button>
+        ) : (
+          <Button className="w-full" icon={<FileText className="w-5 h-5" />} onClick={() => setShowReceipt(true)}>
+            Voir le reçu
+          </Button>
+        )}
         <Button
           variant="secondary"
           className="w-full"

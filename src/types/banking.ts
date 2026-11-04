@@ -13,7 +13,7 @@ export interface CurrencyConfig {
 
 export type TabType = 'comptes' | 'statistiques' | 'cartes' | 'parametres';
 
-export type TransactionType = 'transfer_out' | 'transfer_in' | 'subscription' | 'bill' | 'topup' | 'salary' | 'pos' | 'card_payment';
+export type TransactionType = 'transfer_out' | 'transfer_in' | 'withdrawal' | 'subscription' | 'bill' | 'topup' | 'salary' | 'pos' | 'card_payment';
 
 export type TransactionCategory = 
   | 'Alimentation & Restaurants'
@@ -40,7 +40,7 @@ export interface Transaction {
   currency: CurrencyCode;
   date: string; // ISO string or human string
   timestamp: number;
-  status: 'completed' | 'pending' | 'failed';
+  status: TransactionStatus;
   icon: string;
   brandLogo?: string;
   recipient?: string;
@@ -54,8 +54,27 @@ export interface Transaction {
   locationCity?: string;
   locationCoords?: { lat: number; lng: number };
   isArchived?: boolean;
-  /** Opération créée depuis le mode démo (présentations). */
+  /** Code de retrait chez un agent. */
+  code?: string;
+  /** Opération créée depuis le mode test SIM — jamais un mouvement réel. */
   isSimulated?: boolean;
+  /** Échéancier d'une opération SIM (statut recalculé à partir de ces horodatages). */
+  sim?: SimSchedule;
+}
+
+export type TransactionStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+
+export interface SimSchedule {
+  createdAt: number;
+  /** Passage de « En attente » à « En cours de traitement ». */
+  processingAt: number;
+  /** Fin du traitement : application du résultat. */
+  resolveAt: number;
+  outcome: 'completed' | 'failed';
+  /** Résultat appliqué (solde ajusté) : ne sera plus jamais rejoué. */
+  settled: boolean;
+  /** Montant déjà débité à la création (sorties), remboursé en cas d'échec ou d'annulation. */
+  held: number;
 }
 
 export interface UserProfile {

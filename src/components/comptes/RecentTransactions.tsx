@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ArrowDownLeft,
+  Banknote,
   ArrowUpRight,
   Coffee,
   CreditCard,
@@ -18,9 +19,11 @@ import { formatCurrency, formatTransactionDate } from '../../utils/formatters';
 import { BrandLogo } from '../common/BrandLogo';
 import type { Transaction } from '../../types/banking';
 import { SectionTitle } from '../ui';
+import { STATUS_LABEL, STATUS_STYLE } from '../../utils/status';
 
 export const ICONS: Record<string, React.ElementType> = {
   ArrowDownLeft,
+  Banknote,
   ArrowUpRight,
   Coffee,
   CreditCard,
@@ -54,9 +57,18 @@ const Row: React.FC<{ tx: Transaction; onSelect: (tx: Transaction) => void }> = 
       )}
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-semibold truncate">{tx.title}</span>
-        <span className="block text-[13px] text-neutral-500 truncate mt-0.5">{formatTransactionDate(tx.timestamp)}</span>
+        <span className="flex items-center gap-1.5 mt-0.5 min-w-0">
+          {tx.status !== 'completed' && (
+            <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${STATUS_STYLE[tx.status]}`}>{STATUS_LABEL[tx.status]}</span>
+          )}
+          <span className="text-[13px] text-neutral-500 truncate">{formatTransactionDate(tx.timestamp)}</span>
+        </span>
       </span>
-      <span className={`text-[15px] font-bold whitespace-nowrap ${tx.amount > 0 ? 'text-emerald-600' : 'text-black'}`}>
+      <span
+        className={`text-[15px] font-bold whitespace-nowrap ${
+          tx.status === 'failed' || tx.status === 'cancelled' ? 'text-neutral-400 line-through' : tx.amount > 0 && tx.status === 'completed' ? 'text-emerald-600' : 'text-black'
+        }`}
+      >
         {formatCurrency(tx.amount, tx.currency, { showSign: true })}
       </span>
     </button>

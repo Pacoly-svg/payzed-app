@@ -1,26 +1,44 @@
 import React, { useState } from 'react';
-import { findProvider } from '../../data/catalog';
+import { brandOf } from '../../data/catalog';
 
 interface BrandLogoProps {
-  /** Id du catalogue (« wave »), libellé (« Netflix Premium »), « payzed » ou image (data URL). */
+  /** Id de service ou d'opérateur (« wave »), libellé (« Netflix Premium »), « payzed » ou image (data URL). */
   brand: string;
   className?: string;
   size?: number;
 }
 
-const tile = 'rounded-2xl flex items-center justify-center overflow-hidden shrink-0';
+/*
+ * Normalisation des logos — toutes les marques ont le même poids visuel :
+ *  - conteneur carré identique (taille `size`, coins arrondis, liseré discret
+ *    pour rester lisible sur fond clair comme sombre) ;
+ *  - logos « pleins » (fond de marque) : remplissent la case ;
+ *  - logos horizontaux / transparents : centrés avec une marge constante de 14 %,
+ *    sans jamais être étirés (object-contain) ;
+ *  - sans logo officiel : repère neutre (initiales grises), jamais un faux logo.
+ */
+const tile = 'rounded-2xl flex items-center justify-center overflow-hidden shrink-0 ring-1 ring-black/[0.06]';
 
-/** Icône carrée d'un opérateur ou service — toujours lisible, quelle que soit la taille. */
+const initials = (name: string) =>
+  name
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
 export const BrandLogo: React.FC<BrandLogoProps> = ({ brand, className = '', size = 40 }) => {
-  const [failed, setFailed] = useState(false);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const box = { width: size, height: size };
   const key = (brand || '').trim();
 
-  // Logo personnalisé (canal ajouté par l'utilisateur)
-  if (/^(data:image\/|https?:|blob:)/.test(key) && !failed) {
+  // Logo personnalisé (canal ajouté par l'utilisateur dans SIM)
+  if (/^(data:image\/|https?:|blob:)/.test(key) && failedSrc !== key) {
     return (
-      <span className={`${tile} bg-white ring-1 ring-black/5 ${className}`} style={box}>
-        <img src={key} alt="" className="w-full h-full object-contain p-[12%]" onError={() => setFailed(true)} />
+      <span className={`${tile} bg-white ${className}`} style={box}>
+        <img src={key} alt="" className="w-full h-full object-contain p-[14%]" onError={() => setFailedSrc(key)} />
       </span>
     );
   }
@@ -33,33 +51,34 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ brand, className = '', siz
     );
   }
 
-  const p = findProvider(key);
-
-  if (p?.logo && !failed) {
-    const contain = p.fit === 'contain';
+  const b = brandOf(key);
+  if (b?.logo && failedSrc !== b.logo) {
+    const contain = b.fit === 'contain';
     return (
-      <span className={`${tile} bg-white ring-1 ring-black/5 ${className}`} style={box} title={p.name}>
+      <span className={`${tile} bg-white ${className}`} style={box} title={b.name}>
         <img
-          src={p.logo}
-          alt={p.name}
-          loading="lazy"
+          src={b.logo}
+          alt={b.name}
+          width={size}
+          height={size}
           decoding="async"
-          onError={() => setFailed(true)}
+          draggable={false}
+          onError={() => setFailedSrc(b.logo!)}
           className={`w-full h-full ${contain ? 'object-contain p-[14%]' : 'object-cover'}`}
         />
       </span>
     );
   }
 
-  // Monogramme (service sans logo officiel disponible) ou repli
-  const label = p?.mono ?? (p?.name ?? key).charAt(0).toUpperCase();
+  // Repère neutre : aucun logo officiel vérifiable n'est disponible pour cette marque
   return (
     <span
-      className={`${tile} font-extrabold tracking-tight ${className}`}
-      style={{ ...box, background: p?.bg ?? '#000', color: p?.fg ?? '#fff', fontSize: Math.round(size * (label.length > 2 ? 0.3 : 0.4)) }}
-      title={p?.name ?? key}
+      className={`${tile} bg-neutral-100 text-neutral-600 font-bold ${className}`}
+      style={{ ...box, fontSize: Math.max(10, Math.round(size * 0.32)) }}
+      title={b?.name ?? key}
+      aria-label={b?.name ?? key}
     >
-      {label}
+      {initials(b?.name ?? key) || '?'}
     </span>
   );
 };

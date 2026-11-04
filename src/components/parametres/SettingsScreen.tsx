@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, ChevronRight, Fingerprint, KeyRound, Lock, Presentation, RotateCcw } from 'lucide-react';
+import { Camera, ChevronRight, Fingerprint, FlaskConical, KeyRound, Lock, Presentation, RotateCcw } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { Sheet } from '../common/Sheet';
 import { DemoSheet } from './DemoSheet';
@@ -36,10 +36,10 @@ const VersionLabel: React.FC = () => {
 };
 
 export const SettingsScreen: React.FC = () => {
-  const { user, updateUser, lockApp, isBiometricsEnabled, toggleBiometrics, resetToDemoDefaults, showToast } = useBanking();
+  const { user, updateUser, lockApp, isBiometricsEnabled, toggleBiometrics, resetToDemoDefaults, showToast, testMode, setTestMode } = useBanking();
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone);
-  const [sheet, setSheet] = useState<'pin' | 'reset' | 'demo' | null>(null);
+  const [sheet, setSheet] = useState<'pin' | 'reset' | 'demo' | 'testmode' | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Resynchroniser si le profil change ailleurs (réinitialisation)
@@ -139,15 +139,34 @@ export const SettingsScreen: React.FC = () => {
 
       {/* Données & présentation */}
       <section className="space-y-3">
-        <SectionTitle>Présentation & données</SectionTitle>
+        <SectionTitle>Mode test & données</SectionTitle>
         <List>
           <Row
-            onClick={() => setSheet('demo')}
-            icon={<IconBox><Presentation className="w-5 h-5" /></IconBox>}
-            title="SIM"
-            subtitle="Simulations : entrées, sorties, solde"
-            trailing={<ChevronRight className="w-5 h-5 text-neutral-400" />}
+            icon={<IconBox><FlaskConical className="w-5 h-5" /></IconBox>}
+            title="Mode test"
+            subtitle="Donne accès aux simulations SIM"
+            trailing={
+              <Toggle
+                on={testMode}
+                label="Mode test"
+                onChange={() => {
+                  if (testMode) {
+                    setTestMode(false);
+                    showToast('Mode test désactivé');
+                  } else setSheet('testmode');
+                }}
+              />
+            }
           />
+          {testMode && (
+            <Row
+              onClick={() => setSheet('demo')}
+              icon={<IconBox><Presentation className="w-5 h-5" /></IconBox>}
+              title="SIM"
+              subtitle="Simuler entrées, envois, retraits et solde"
+              trailing={<ChevronRight className="w-5 h-5 text-neutral-400" />}
+            />
+          )}
           <Row
             onClick={() => setSheet('reset')}
             icon={<IconBox className="text-red-600"><RotateCcw className="w-5 h-5" /></IconBox>}
@@ -160,7 +179,17 @@ export const SettingsScreen: React.FC = () => {
       <VersionLabel />
 
       {sheet === 'pin' && <PinSheet onClose={() => setSheet(null)} />}
-      {sheet === 'demo' && <DemoSheet onClose={() => setSheet(null)} />}
+      {sheet === 'demo' && testMode && <DemoSheet onClose={() => setSheet(null)} />}
+      {sheet === 'testmode' && (
+        <TestModeSheet
+          onClose={() => setSheet(null)}
+          onEnabled={() => {
+            setTestMode(true);
+            setSheet(null);
+            showToast('Mode test activé');
+          }}
+        />
+      )}
       {sheet === 'reset' && (
         <Sheet title="Réinitialiser ?" onClose={() => setSheet(null)}>
           <p className="text-[15px] text-neutral-600">
@@ -227,6 +256,50 @@ const PinSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         />
         <Button type="submit" className="w-full" disabled={!ready}>
           Enregistrer
+        </Button>
+      </form>
+    </Sheet>
+  );
+};
+
+/** Activation du mode test : confirmation par le code PIN. */
+const TestModeSheet: React.FC<{ onClose: () => void; onEnabled: () => void }> = ({ onClose, onEnabled }) => {
+  const { verifyPin } = useBanking();
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState(false);
+  return (
+    <Sheet title="Activer le mode test" onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (verifyPin(pin)) onEnabled();
+          else {
+            setError(true);
+            setPin('');
+          }
+        }}
+        className="space-y-4"
+      >
+        <p className="text-[15px] text-neutral-600">
+          Le mode test donne accès aux simulations (SIM). Elles ne déplacent aucune somme réelle et restent identifiées comme simulées.
+        </p>
+        <Field
+          label="Votre code PIN"
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          enterKeyHint="done"
+          value={pin}
+          onChange={(e) => {
+            setPin(e.target.value.replace(/\D/g, '').slice(0, 4));
+            setError(false);
+          }}
+          className="tracking-[0.6em] text-center text-xl"
+          error={error && 'Code incorrect'}
+          autoFocus
+        />
+        <Button type="submit" className="w-full" disabled={pin.length !== 4}>
+          Activer
         </Button>
       </form>
     </Sheet>

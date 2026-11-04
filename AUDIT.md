@@ -1,5 +1,103 @@
 # Audit Payzed
 
+## Version 1.6.0 — audit global, corrections et optimisation
+
+### Priorité 1 — Corrections bloquantes
+
+**Bouton / geste Retour Android qui fermait l'app**
+- *Cause :* Capacitor transmet le Retour à l'historique du navigateur intégré ; or l'app n'a qu'une seule page
+  (onglets et fenêtres sont des états React). Sans historique, Android fermait l'application.
+- *Correction (à la source) :* pile de retour unique `src/utils/backStack.ts`, branchée sur le plugin `@capacitor/app`
+  (`backButton`) et sur la touche Échap. Chaque élément refermable s'y inscrit avec une priorité :
+  verrouillage > notification > fenêtres / sous-écrans > écran principal.
+  Ordre obtenu : confirmation ouverte → sous-écran (ex. fiche d'un coffre) → fenêtre → onglet → Accueil →
+  « Appuyez encore sur Retour pour quitter » → mise en arrière-plan (jamais de fermeture brutale).
+  Sur l'écran de verrouillage, Retour met l'app en arrière-plan sans jamais contourner le code.
+  La flèche « ← » de l'interface et le geste Android passent par le même mécanisme.
+- *Abandon d'une opération :* toute fenêtre contenant une saisie demande « Abandonner l'opération ? » ; les valeurs
+  sont conservées si l'on continue.
+- *Liens profonds :* `payzed://pay?name=…&tel=…` (intent Android déclaré). Le QR « Recevoir » encode désormais ce lien :
+  scanné avec l'appareil photo du téléphone, il ouvre Payzed sur le paiement, **après** déverrouillage par code PIN.
+
+**Clavier et saisie** (corrigé en 1.5, étendu en 1.6) — plugin natif `@capacitor/keyboard` + `src/utils/keyboard.ts` ;
+nouveaux champs (retrait, durée SIM, PIN du mode test) couverts ; touches « Suivant / OK » du clavier (`enterKeyHint`),
+pavé numérique pour les montants, clavier téléphone pour les numéros. Les valeurs saisies sont conservées entre les
+étapes.
+
+### Priorité 2 — Fiabilité fonctionnelle
+
+**Formulaires financiers** (Envoyer, Retirer, Crédit, Factures, Paiement QR)
+- Étape **« Vérifier »** systématique avant exécution (bénéficiaire, moyen, montant, frais, total débité).
+- **Anti double soumission :** le bouton « Confirmer » se verrouille au premier appui (état « Traitement… ») ;
+  test : 3 appuis rapides = 1 seul débit.
+- **Validations :** numéro sénégalais (9 chiffres, 70–78, avec ou sans +221), RIB/IBAN, e-mail ou numéro international,
+  nom, montant > 0 et ≤ solde frais compris. Messages d'erreur sous le champ concerné.
+- Messages de succès affichés uniquement après l'enregistrement effectif de l'opération.
+
+**Nouveau parcours Retrait** — vers un portefeuille Mobile Money, ou chez un agent avec **code de retrait** à 6 chiffres
+(valable 24 h, visible dans le détail et le reçu).
+
+**Simulation SIM (mode test)** — `src/context/DemoContext.tsx`
+- Durée libre en **secondes, minutes, heures ou jours** ; résultat choisi : réussie ou échouée.
+- Statuts : **En attente → En cours de traitement → Réussie / Échouée**, ou **Annulée** à tout moment.
+- Chaque opération porte un échéancier persisté (`createdAt`, `processingAt`, `resolveAt`, `outcome`, `settled`, `held`).
+  Le statut est **recalculé à partir de ces horodatages** au démarrage, au retour au premier plan et chaque seconde :
+  rien n'est perdu si l'app est fermée ou redémarrée, et un résultat n'est **jamais appliqué deux fois**.
+- Effets sur le solde : sortie/retrait débités (montant + frais) dès la création et **remboursés** si échec/annulation ;
+  entrée créditée **uniquement** si elle réussit.
+- Séparation : toutes les opérations SIM sont marquées « simulées » ; **« Effacer toutes les opérations SIM »** les
+  supprime et annule exactement leurs effets sur le solde.
+- Accès : menu SIM visible seulement en **mode test**, activé dans Profil avec le **code PIN**.
+- Limite connue : quand l'app est complètement fermée, aucune notification système n'est émise ; le statut est mis à
+  jour et notifié à la réouverture.
+
+### Priorité 3 — Opérateurs, services et logos
+- Catalogue restructuré (`src/data/catalog.ts`) : **opérateurs** (identité, logo, provenance) distincts des **services**
+  (catégorie, parcours). Ex. Orange → Orange Money, crédit Orange, Orange Fibre ; Senelec → facture Senelec, Woyofal.
+  30 opérateurs (dont Payzed), 34 services, 12 catégories regroupées en 4 familles (Envoyer & recevoir, Recharger, Payer une facture,
+  Abonnements).
+- Inventaire complet et provenance de chaque logo : **`docs/LOGOS.md`**. Visuels non officiels retirés (monogrammes de
+  couleur, logo Société Générale redessiné) → repère neutre signalé « logo à fournir » (7 marques).
+- Composant de normalisation unique `BrandLogo` : même carré partout, marges constantes, aucune déformation,
+  liseré pour fonds clairs et sombres. Test : 27/27 logos chargés, tous strictement de la même taille.
+
+### Priorité 4 — Expérience utilisateur
+- **Par action** (accueil) : Envoyer, Recevoir, Retirer, Crédit, Factures, Épargne.
+- **Par opérateur** : « Tous les services » → onglets *Par service* / *Par opérateur*, recherche (nom, alias, opérateur,
+  catégorie) ; la fiche d'un opérateur liste tous ses services (un portefeuille propose aussi « Retirer vers … »).
+- Statuts visibles dans l'historique (badge texte + couleur), détail avec échéance et bouton « Annuler l'opération ».
+- Reçu : la coche « réussi » n'apparaît que si l'opération a réellement réussi.
+
+### Priorité 5 — Nettoyage, performances, sécurité
+- **Code PIN haché** (SHA-256) : plus jamais stocké en clair ; migration automatique de l'ancien stockage.
+- Journaux : seul un message technique est consigné en cas d'erreur d'affichage, jamais de données de compte.
+- Code mort supprimé (vérifié par recherche des usages) : `convertCurrency`, `totalWithFee`, `isFinalFailure`,
+  état d'onboarding inutilisé, carte des emojis étendue ; 14 images d'emojis jamais affichables, 10 logos sources et une
+  licence sortis de l'APK (images embarquées : 1,1 Mo → 0,46 Mo).
+- Correction d'une dépendance manquante de hook (`lockApp`).
+
+### Priorité 6 — Tests exécutés (Chromium, émulation Galaxy, `tests/e2e/`)
+| Suite | Résultat |
+|---|---|
+| `clavier.cjs` — tous les champs, clavier qui réduit l'écran ou le recouvre, 360 et 412 px | **100/100** champs visibles |
+| `navigation-formulaires.cjs` — Retour, confirmations, validation, double appui | **19/19** |
+| `simulation-sim.cjs` — statuts en direct, échec + remboursement, redémarrage, rattrapage, annulation, purge, PIN | **20/20** |
+| `retrait-recu-logos-qr.cjs` — retrait agent, reçu PNG, logos, recherche, scan QR (caméra simulée) | **13/13** |
+| `responsive.cjs` — 320 / 360 / 393 / 412 / 480 px | aucun débordement |
+| Compilation TypeScript + build Vite + lint oxlint | OK (avertissements de style uniquement) |
+
+**Non vérifiable ici :** aucun appareil ni émulateur Android n'est disponible dans l'environnement de développement.
+Le comportement natif (bouton Retour physique, plugin clavier, partage, liens profonds, caméra réelle) a été implémenté
+avec les API officielles Capacitor 8 et vérifié par lecture de leur code source, mais doit être confirmé sur téléphone.
+L'orientation est verrouillée en portrait (pas de test paysage).
+
+### Points restant à traiter
+- Fournir les logos officiels manquants (liste dans `docs/LOGOS.md`).
+- Clé de signature « release » privée avant toute publication sur le Play Store.
+- Notifications système pour les opérations SIM arrivant à échéance app fermée (plugin de notifications locales).
+
+---
+
 ## Version 1.5.0
 
 ### Saisie au clavier — cause et correction

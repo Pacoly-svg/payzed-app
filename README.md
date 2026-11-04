@@ -36,3 +36,10 @@ npx cap sync android
 # Ouvrir dans Android Studio
 npx cap open android
 ```
+
+## ✅ Tests
+```bash
+# Prérequis : Playwright + Chromium, ffmpeg et ImageMagick (scan QR)
+./tests/e2e/run.sh
+```
+Voir `AUDIT.md` (compte rendu) et `docs/LOGOS.md` (inventaire des logos).

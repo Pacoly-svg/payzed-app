@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, CreditCard, Eye, EyeOff, Lock, LockOpen, RefreshCw, SlidersHorizontal, Wifi } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
+import { useBackHandler } from '../../utils/backStack';
 import { formatCurrency, formatTransactionDate, maskCardNumber } from '../../utils/formatters';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
 import { AmountField, Button, Card, EmptyState, IconBox, List, PageTitle, ProgressBar, Row, SectionTitle, TextLink, Toggle, parseAmount } from '../ui';
 import type { VirtualCardData } from '../../types/banking';
+import { countsAsMoved } from '../../utils/status';
 
 const CARD_TYPES = new Set(['card_payment', 'subscription', 'pos']);
 const MIN_LIMIT = 100_000;
@@ -119,6 +121,8 @@ export const CardsScreen: React.FC = () => {
   const [sheet, setSheet] = useState<'limit' | 'replace' | null>(null);
 
   const revealed = revealUntil !== null && !card.isFrozen;
+  // Retour Android : masquer d'abord les informations de la carte
+  useBackHandler(() => setRevealUntil(null), revealed);
 
   // Les infos se masquent toutes seules après 30 s
   useEffect(() => {
@@ -152,7 +156,7 @@ export const CardsScreen: React.FC = () => {
     const start = new Date();
     start.setDate(1);
     start.setHours(0, 0, 0, 0);
-    const all = transactions.filter((t) => t.amount < 0 && CARD_TYPES.has(t.type));
+    const all = transactions.filter((t) => t.amount < 0 && CARD_TYPES.has(t.type) && countsAsMoved(t));
     return {
       spent: all.filter((t) => t.timestamp >= start.getTime()).reduce((s, t) => s + Math.abs(t.amount), 0),
       cardTx: all.slice(0, 4),

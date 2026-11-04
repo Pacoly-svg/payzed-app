@@ -14,7 +14,8 @@ export class ErrorBoundary extends React.Component<Props, { hasError: boolean }>
   }
 
   componentDidCatch(error: unknown) {
-    console.error('[Payzed]', error);
+    // Message technique uniquement : jamais de données de compte dans les journaux
+    console.error('[Payzed] erreur d’affichage :', error instanceof Error ? error.message : 'inconnue');
   }
 
   private reset = () => {

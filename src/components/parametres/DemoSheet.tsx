@@ -1,22 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ImagePlus, Plus, Timer } from 'lucide-react';
+import { ImagePlus, Plus } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
-import { SIM_CATEGORIES, useDemo } from '../../context/DemoContext';
-import { categoryOf, findProvider, providersIn, type CategoryId } from '../../data/catalog';
+import { SIM_CATEGORIES, useDemo, type SimKind } from '../../context/DemoContext';
+import { categoryOf, findService, servicesIn, type CategoryId } from '../../data/catalog';
 import { formatCurrency } from '../../utils/formatters';
 import { feeFor } from '../../utils/fees';
 import { resizeImage } from '../../utils/image';
+import { STATUS_LABEL, formatDuration } from '../../utils/status';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
-import { AmountField, Button, ChoiceGrid, FeeSummary, Field, SectionTitle, Segmented, TextLink, parseAmount } from '../ui';
+import { AmountField, Button, ChoiceGrid, FeeSummary, Field, List, SectionTitle, Segmented, TextLink, parseAmount } from '../ui';
 
-const DELAYS = [
-  { id: '0', label: 'Direct' },
-  { id: '10', label: '10 s' },
-  { id: '30', label: '30 s' },
-  { id: '60', label: '1 min' },
+const UNITS = [
+  { id: 's', ms: 1000 },
+  { id: 'min', ms: 60_000 },
+  { id: 'h', ms: 3_600_000 },
+  { id: 'j', ms: 86_400_000 },
 ] as const;
-type Delay = (typeof DELAYS)[number]['id'];
+type Unit = (typeof UNITS)[number]['id'];
 
 /** Valeur pour <input type="datetime-local"> à l'heure locale. */
 const toLocalInput = (ts: number) => {
@@ -25,14 +26,18 @@ const toLocalInput = (ts: number) => {
   return d.toISOString().slice(0, 16);
 };
 
-const Countdown: React.FC<{ endsAt: number }> = ({ endsAt }) => {
+const fullDate = (ts: number) => new Date(ts).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+/** Re-rendu toutes les secondes (comptes à rebours). */
+function useNow(active: boolean) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 250);
+    if (!active) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, []);
-  return <>{Math.max(0, Math.ceil((endsAt - now) / 1000))} s</>;
-};
+  }, [active]);
+  return now;
+}
 
 /* ---------- Ajout d'un canal personnalisé ---------- */
 
@@ -91,11 +96,11 @@ const NewChannel: React.FC<{ onBack: () => void; onClose: () => void; onCreated:
 /* ---------- SIM ---------- */
 
 export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { balance, setBalanceTo, showToast } = useBanking();
-  const { simulate, pending, cancelSimulation, customPlatforms, removeCustomPlatform } = useDemo();
+  const { balance, setBalanceTo, showToast, user, setSelectedTransaction } = useBanking();
+  const { simulate, activeSims, cancelSim, purgeSims, customPlatforms, removeCustomPlatform } = useDemo();
 
-  const [view, setView] = useState<'main' | 'channel'>('main');
-  const [direction, setDirection] = useState<'in' | 'out'>('in');
+  const [view, setView] = useState<'main' | 'channel' | 'purge'>('main');
+  const [kind, setKind] = useState<SimKind>('in');
   const [platform, setPlatform] = useState<string>('wave');
   const [group, setGroup] = useState<CategoryId | 'custom'>('mobile_money');
   const [name, setName] = useState('');
@@ -103,8 +108,11 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [amount, setAmount] = useState('');
   const [when, setWhen] = useState<'now' | 'date'>('now');
   const [date, setDate] = useState(() => toLocalInput(Date.now() - 86_400_000));
-  const [delay, setDelay] = useState<Delay>('0');
+  const [delay, setDelay] = useState('0');
+  const [unit, setUnit] = useState<Unit>('min');
+  const [outcome, setOutcome] = useState<'completed' | 'failed'>('completed');
   const [newBalance, setNewBalance] = useState(String(balance));
+  const now = useNow(activeSims.length > 0);
 
   // Le champ suit le solde réel (après une simulation, par exemple)
   useEffect(() => {
@@ -125,35 +133,67 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     );
   }
 
+  if (view === 'purge') {
+    return (
+      <Sheet title="Effacer les opérations SIM ?" onBack={() => setView('main')} onClose={onClose}>
+        <p className="text-[15px] text-neutral-600">
+          Toutes les opérations créées dans SIM seront supprimées de l'historique et leurs effets sur le solde annulés. Les autres opérations ne
+          sont pas touchées.
+        </p>
+        <div className="space-y-2 mt-6">
+          <Button
+            className="w-full bg-red-600"
+            onClick={() => {
+              const n = purgeSims();
+              showToast(n ? `${n} opération${n > 1 ? 's' : ''} SIM effacée${n > 1 ? 's' : ''}` : 'Aucune opération SIM');
+              setView('main');
+            }}
+          >
+            Tout effacer
+          </Button>
+          <Button variant="secondary" className="w-full" onClick={() => setView('main')}>
+            Annuler
+          </Button>
+        </div>
+      </Sheet>
+    );
+  }
+
+  const isIn = kind === 'in';
   const value = parseAmount(amount);
-  const fee = direction === 'out' ? feeFor(value) : 0;
+  const fee = isIn ? 0 : feeFor(value);
+  const delayValue = Number(delay.replace(',', '.')) || 0;
+  const delayMs = Math.round(delayValue * UNITS.find((u) => u.id === unit)!.ms);
   const dateTs = when === 'date' ? new Date(date).getTime() : undefined;
   const dateValid = when === 'now' || (Number.isFinite(dateTs) && (dateTs as number) <= Date.now());
-  const ready = name.trim().length > 0 && value > 0 && dateValid && (direction === 'in' || value + fee <= balance);
-  const balanceValue = parseAmount(newBalance);
-  const isCustom = platform.startsWith('custom_');
+  const delayValid = delayValue >= 0 && delayMs <= 365 * 86_400_000;
+  const ready = name.trim().length > 0 && value > 0 && dateValid && delayValid && (isIn || outcome === 'failed' || value + fee <= balance);
 
   const launch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!ready) return;
-    const delaySeconds = when === 'now' ? Number(delay) : 0;
-    simulate({ direction, platform, name, phone, amount: value, delaySeconds, timestamp: dateTs });
+    const error = simulate({
+      kind,
+      platform,
+      name,
+      phone,
+      amount: value,
+      delayMs: when === 'now' ? delayMs : 0,
+      outcome,
+      timestamp: dateTs,
+    });
+    if (error) return showToast(error);
     setAmount('');
-    if (delaySeconds > 0) {
-      showToast(`Notification dans ${DELAYS.find((d) => d.id === delay)!.label}`);
-      onClose(); // on laisse l'écran libre pour la présentation
-    }
+    if (when === 'now' && delayMs > 0) showToast(`Simulation lancée · résultat le ${fullDate(Date.now() + delayMs)}`);
   };
 
   const groupIds =
-    group === 'custom'
-      ? customPlatforms.map((p) => p.id)
-      : [...(group === 'mobile_money' ? ['payzed'] : []), ...providersIn(group).map((p) => p.id)];
+    group === 'custom' ? customPlatforms.map((p) => p.id) : [...(group === 'mobile_money' ? ['payzed'] : []), ...servicesIn(group).map((p) => p.id)];
   const options = groupIds.map((id) => {
     const custom = customPlatforms.find((p) => p.id === id);
     return {
       id,
-      label: custom?.name ?? (id === 'payzed' ? 'Payzed' : findProvider(id)?.name ?? id),
+      label: custom?.name ?? (id === 'payzed' ? 'Payzed' : findService(id)?.name ?? id),
       icon: <BrandLogo brand={custom?.logo ?? id} size={32} className="rounded-lg" />,
     };
   });
@@ -163,31 +203,50 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   ];
 
   return (
-    <Sheet title="SIM" onClose={onClose}>
+    <Sheet title="SIM · mode test" onClose={onClose} confirmClose={Boolean(name || amount)}>
       <div className="space-y-8">
-        {pending && (
-          <div className="flex items-center gap-3 rounded-3xl bg-black text-white p-4">
-            <Timer className="w-6 h-6 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[15px] font-semibold truncate">{pending.label}</p>
-              <p className="text-[13px] text-neutral-400">
-                Arrive dans <Countdown endsAt={pending.endsAt} />
-              </p>
-            </div>
-            <Button size="md" variant="secondary" className="bg-white/15 text-white" onClick={cancelSimulation}>
-              Annuler
-            </Button>
-          </div>
+        <p className="rounded-2xl bg-neutral-100 px-4 py-3 text-[13px] text-neutral-600">
+          Simulations uniquement : aucune somme réelle n'est déplacée. Chaque opération créée ici est marquée « simulée » et peut être effacée.
+        </p>
+
+        {activeSims.length > 0 && (
+          <section className="space-y-3">
+            <SectionTitle>En cours ({activeSims.length})</SectionTitle>
+            <List>
+              {activeSims.map((t) => (
+                <div key={t.id} className="flex items-center gap-3 px-4 py-3.5">
+                  <button type="button" onClick={() => setSelectedTransaction(t)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                    <BrandLogo brand={t.brandLogo ?? 'payzed'} size={40} />
+                    <span className="min-w-0">
+                      <span className="block text-[15px] font-semibold truncate">
+                        {t.title} · {formatCurrency(t.amount, 'XOF', { showSign: true })}
+                      </span>
+                      <span className="block text-[13px] text-neutral-500">
+                        {STATUS_LABEL[t.status]} · résultat dans {formatDuration((t.sim?.resolveAt ?? now) - now)}
+                      </span>
+                    </span>
+                  </button>
+                  <Button size="md" variant="secondary" className="bg-white px-4" onClick={() => cancelSim(t.id)}>
+                    Annuler
+                  </Button>
+                </div>
+              ))}
+            </List>
+          </section>
         )}
 
         <form onSubmit={launch} className="space-y-5">
-          <SectionTitle>Simuler une opération</SectionTitle>
+          <SectionTitle>Nouvelle simulation</SectionTitle>
           <Segmented
-            value={direction}
-            onChange={setDirection}
+            value={kind}
+            onChange={(k) => {
+              setKind(k);
+              if (k === 'withdrawal' && !name) setName(user.name);
+            }}
             options={[
-              { id: 'in', label: "Entrée d'argent" },
-              { id: 'out', label: "Sortie d'argent" },
+              { id: 'in', label: 'Entrée' },
+              { id: 'out', label: 'Envoi' },
+              { id: 'withdrawal', label: 'Retrait' },
             ]}
           />
 
@@ -198,9 +257,7 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   key={g.id}
                   type="button"
                   onClick={() => setGroup(g.id)}
-                  className={`h-9 px-4 rounded-full text-sm font-bold shrink-0 transition-colors ${
-                    group === g.id ? 'bg-black text-white' : 'bg-neutral-100 text-neutral-700'
-                  }`}
+                  className={`h-9 px-4 rounded-full text-sm font-bold shrink-0 transition-colors ${group === g.id ? 'bg-black text-white' : 'bg-neutral-100 text-neutral-700'}`}
                 >
                   {g.label}
                 </button>
@@ -211,7 +268,7 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               <TextLink className="flex items-center gap-1.5" onClick={() => setView('channel')}>
                 <Plus className="w-4 h-4" /> Ajouter un canal
               </TextLink>
-              {isCustom && (
+              {platform.startsWith('custom_') && (
                 <TextLink
                   className="text-red-600"
                   onClick={() => {
@@ -227,11 +284,12 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           </div>
 
           <Field
-            label={direction === 'in' ? 'Expéditeur' : 'Bénéficiaire'}
+            label={isIn ? 'Expéditeur' : kind === 'withdrawal' ? 'Retiré par' : 'Bénéficiaire'}
             placeholder="Nom et prénom"
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoComplete="off"
+            enterKeyHint="next"
           />
           <Field
             label="Numéro (facultatif)"
@@ -241,9 +299,10 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             autoComplete="off"
+            enterKeyHint="next"
           />
           <AmountField value={amount} onChange={setAmount} />
-          {direction === 'out' && value > 0 && <FeeSummary amount={value} fee={fee} balance={balance} />}
+          {!isIn && value > 0 && <FeeSummary amount={value} fee={fee} balance={balance} />}
 
           <div className="space-y-3">
             <p className="text-[13px] font-semibold text-neutral-500 px-1">Date de l'opération</p>
@@ -252,7 +311,7 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               onChange={setWhen}
               options={[
                 { id: 'now', label: 'Maintenant' },
-                { id: 'date', label: 'Autre date' },
+                { id: 'date', label: 'Date passée' },
               ]}
             />
             {when === 'date' ? (
@@ -264,32 +323,65 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 hint={dateValid ? "Ajoutée directement à l'historique, sans notification." : 'Choisissez une date passée.'}
               />
             ) : (
-              <div>
-                <p className="text-[13px] font-semibold text-neutral-500 mb-1.5 px-1">Arrivée de la notification</p>
-                <Segmented value={delay} onChange={setDelay} options={DELAYS.map((d) => ({ id: d.id, label: d.label }))} />
-              </div>
+              <>
+                <p className="text-[13px] font-semibold text-neutral-500 px-1 pt-1">Durée de traitement</p>
+                <div className="flex gap-2">
+                  <input
+                    inputMode="decimal"
+                    enterKeyHint="done"
+                    value={delay}
+                    onChange={(e) => setDelay(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))}
+                    aria-label="Durée de traitement"
+                    className="w-24 h-14 px-4 rounded-2xl bg-neutral-100 border-2 border-transparent text-[18px] font-bold text-center focus:outline-none focus:border-black focus:bg-white"
+                  />
+                  <div className="flex-1 min-w-0 self-center">
+                    <Segmented value={unit} onChange={setUnit} options={UNITS.map((u) => ({ id: u.id, label: u.id }))} />
+                  </div>
+                </div>
+                <p className="text-[13px] text-neutral-500 px-1">
+                  {delayMs === 0
+                    ? 'Immédiat : le résultat est appliqué tout de suite.'
+                    : `En attente, puis en cours de traitement, puis résultat le ${fullDate(Date.now() + delayMs)} — même si l'app est fermée entre-temps.`}
+                </p>
+              </>
             )}
           </div>
 
+          <div className="space-y-2">
+            <p className="text-[13px] font-semibold text-neutral-500 px-1">Résultat</p>
+            <Segmented
+              value={outcome}
+              onChange={setOutcome}
+              options={[
+                { id: 'completed', label: 'Réussie' },
+                { id: 'failed', label: 'Échouée' },
+              ]}
+            />
+          </div>
+
           <Button type="submit" className="w-full" disabled={!ready}>
-            {direction === 'in' ? "Simuler l'entrée" : 'Simuler la sortie'}
+            Lancer la simulation
           </Button>
         </form>
 
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            setBalanceTo(balanceValue);
+            setBalanceTo(parseAmount(newBalance));
             showToast('Solde mis à jour');
           }}
           className="space-y-4"
         >
           <SectionTitle>Solde du compte</SectionTitle>
           <AmountField label="Nouveau solde" value={newBalance} onChange={setNewBalance} hint={`Actuel : ${formatCurrency(balance, 'XOF')}`} />
-          <Button type="submit" variant="secondary" className="w-full" disabled={balanceValue === balance}>
+          <Button type="submit" variant="secondary" className="w-full" disabled={parseAmount(newBalance) === balance}>
             Mettre à jour le solde
           </Button>
         </form>
+
+        <Button variant="ghost" className="w-full text-red-600" onClick={() => setView('purge')}>
+          Effacer toutes les opérations SIM
+        </Button>
       </div>
     </Sheet>
   );

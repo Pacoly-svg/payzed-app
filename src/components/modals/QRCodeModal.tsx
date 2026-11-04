@@ -5,36 +5,14 @@ import { useBanking } from '../../context/BankingContext';
 import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { Sheet } from '../common/Sheet';
-import { AmountField, Button, FeeSummary, Segmented, SuccessView, TextLink, parseAmount } from '../ui';
+import { AmountField, Button, FeeSummary, ReviewView, Segmented, SuccessView, TextLink, parseAmount } from '../ui';
 import { feeFor } from '../../utils/fees';
 import { shareText } from '../../utils/share';
+import { decodePayload, encodePayload, type Payee } from '../../utils/payLink';
 
 type Mode = 'pay' | 'receive';
-interface Payee {
-  name: string;
-  phone: string;
-}
 
-/* ---------- Format du QR Payzed : PAYZED:<nom>:<téléphone> ---------- */
-
-const encodePayload = (name: string, phone: string) => `PAYZED:${encodeURIComponent(name)}:${phone.replace(/\s/g, '')}`;
-
-function decodePayload(raw: string): Payee | null {
-  const text = raw.trim();
-  const m = /^PAYZED:([^:]*):(\+?\d{6,15})$/i.exec(text);
-  if (m) {
-    let name = m[1];
-    try {
-      name = decodeURIComponent(m[1]);
-    } catch {
-      // garder tel quel
-    }
-    return { name: name.replace(/^@/, '') || 'Contact Payzed', phone: m[2] };
-  }
-  const digits = text.replace(/[^\d+]/g, '');
-  if (/^\+?\d{9,15}$/.test(digits)) return { name: 'Contact', phone: digits };
-  return null;
-}
+/* Format du QR : voir utils/payLink.ts (lien profond payzed://pay, ancien format PAYZED: accepté). */
 
 /** +221773198812 → +221 77 319 88 12 */
 const prettyPhone = (p: string) => {
@@ -216,70 +194,120 @@ const Scanner: React.FC<{ onResult: (p: Payee) => void }> = ({ onResult }) => {
   );
 };
 
-const PayForm: React.FC<{ payee: Payee; onDone: () => void; onCancel: () => void }> = ({ payee, onDone, onCancel }) => {
-  const { balance, addTransaction, showToast } = useBanking();
+const PayFlow: React.FC<{ payee: Payee; onClose: () => void; onRescan: () => void }> = ({ payee, onClose, onRescan }) => {
+  const { balance, addTransaction } = useBanking();
   const [amount, setAmount] = useState('');
-  const [done, setDone] = useState<number | null>(null);
+  const [step, setStep] = useState<'form' | 'review' | 'done'>('form');
+  const [showErrors, setShowErrors] = useState(false);
   const value = parseAmount(amount);
   const fee = feeFor(value);
+  const amountError = !(value > 0) ? 'Entrez un montant' : value + fee > balance ? 'Solde insuffisant (frais compris)' : false;
   const initials = payee.name.split(/\s+/).map((p) => p[0] ?? '').join('').slice(0, 2).toUpperCase();
 
-  if (done !== null) return <SuccessView amount={formatCurrency(done, 'XOF')} text={`payés à ${payee.name}`} onDone={onDone} />;
+  const execute = () => {
+    addTransaction({
+      title: payee.name,
+      subtitle: 'Paiement par QR code',
+      category: 'Revenus & Virements',
+      type: 'transfer_out',
+      amount: -value,
+      status: 'completed',
+      icon: 'ArrowUpRight',
+      recipient: `${payee.name} · ${prettyPhone(payee.phone)}`,
+      recipientPhone: payee.phone,
+      fee,
+      paymentMethod: 'QR code Payzed',
+    });
+    triggerSuccessConfetti();
+    setStep('done');
+  };
 
+  if (step === 'done') {
+    return (
+      <Sheet title="Paiement effectué" onClose={onClose}>
+        <SuccessView amount={formatCurrency(value, 'XOF')} text={`payés à ${payee.name}`} onDone={onClose} />
+      </Sheet>
+    );
+  }
+  if (step === 'review') {
+    return (
+      <Sheet title="Vérifier le paiement" onClose={onClose} onBack={() => setStep('form')} confirmClose>
+        <ReviewView
+          amount={formatCurrency(value, 'XOF')}
+          rows={[
+            ['Bénéficiaire', payee.name],
+            ['Numéro', prettyPhone(payee.phone)],
+            ['Frais (1 %)', formatCurrency(fee, 'XOF')],
+            ['Total débité', <strong key="t">{formatCurrency(value + fee, 'XOF')}</strong>],
+          ]}
+          confirmLabel="Confirmer le paiement"
+          onConfirm={execute}
+          onEdit={() => setStep('form')}
+        />
+      </Sheet>
+    );
+  }
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!(value > 0)) return showToast('Entrez un montant');
-        if (value + fee > balance) return showToast('Solde insuffisant (frais compris)');
-        addTransaction({
-          title: payee.name,
-          subtitle: 'Paiement par QR code',
-          category: 'Revenus & Virements',
-          type: 'transfer_out',
-          amount: -value,
-          status: 'completed',
-          icon: 'ArrowUpRight',
-          recipient: `${payee.name} · ${prettyPhone(payee.phone)}`,
-          recipientPhone: payee.phone,
-          fee,
-          paymentMethod: 'QR code Payzed',
-        });
-        triggerSuccessConfetti();
-        setDone(value);
-      }}
-      className="space-y-5"
+    <Sheet
+      title="Payer"
+      onClose={onClose}
+      onBack={onRescan}
+      confirmClose={Boolean(amount)}
+      footer={
+        <Button type="submit" form="qr-pay" className="w-full">
+          Continuer
+        </Button>
+      }
     >
-      <div className="flex flex-col items-center text-center">
-        <span className="w-16 h-16 rounded-full bg-black text-white flex items-center justify-center text-xl font-bold">{initials}</span>
-        <p className="mt-3 text-xl font-bold">{payee.name}</p>
-        <p className="text-[15px] text-neutral-500">{prettyPhone(payee.phone)}</p>
-      </div>
-      <AmountField value={amount} onChange={setAmount} autoFocus hint={`Disponible : ${formatCurrency(balance, 'XOF')}`} />
-      {value > 0 && <FeeSummary amount={value} fee={fee} balance={balance} />}
-      <Button type="submit" className="w-full" disabled={!(value > 0) || value + fee > balance}>
-        {value > 0 ? `Payer ${formatCurrency(value, 'XOF')}` : 'Payer'}
-      </Button>
-      <Button variant="ghost" className="w-full" onClick={onCancel}>
-        Scanner un autre code
-      </Button>
-    </form>
+      <form
+        id="qr-pay"
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          setShowErrors(true);
+          if (!amountError) setStep('review');
+        }}
+        className="space-y-5"
+      >
+        <div className="flex flex-col items-center text-center">
+          <span className="w-16 h-16 rounded-full bg-black text-white flex items-center justify-center text-xl font-bold">{initials}</span>
+          <p className="mt-3 text-xl font-bold">{payee.name}</p>
+          <p className="text-[15px] text-neutral-500">{prettyPhone(payee.phone)}</p>
+        </div>
+        <AmountField
+          value={amount}
+          onChange={setAmount}
+          autoFocus
+          hint={showErrors && amountError ? <span className="text-red-600">{amountError}</span> : `Disponible : ${formatCurrency(balance, 'XOF')}`}
+        />
+        {value > 0 && <FeeSummary amount={value} fee={fee} balance={balance} />}
+        <Button variant="ghost" className="w-full" onClick={onRescan}>
+          Scanner un autre code
+        </Button>
+      </form>
+    </Sheet>
   );
 };
 
 /* ---------- Fenêtre ---------- */
 
 export const QRCodeModal: React.FC = () => {
-  const { activeModal, setActiveModal } = useBanking();
+  const { activeModal, setActiveModal, modalParams } = useBanking();
   const [mode, setMode] = useState<Mode>(activeModal === 'scan' ? 'pay' : 'receive');
-  const [payee, setPayee] = useState<Payee | null>(null);
+  // Ouverture depuis un lien profond payzed://pay?... : bénéficiaire déjà connu
+  const [payee, setPayee] = useState<Payee | null>(modalParams.payee ?? null);
   const close = () => setActiveModal(null);
 
   if (payee) {
     return (
-      <Sheet title="Payer" onClose={close} onBack={() => setPayee(null)}>
-        <PayForm payee={payee} onDone={close} onCancel={() => setPayee(null)} />
-      </Sheet>
+      <PayFlow
+        payee={payee}
+        onClose={close}
+        onRescan={() => {
+          setPayee(null);
+          setMode('pay');
+        }}
+      />
     );
   }
 

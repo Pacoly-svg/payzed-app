@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import React from 'react';
-import { Check } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Check, Loader2 } from 'lucide-react';
 
 /*
  * Boîte à outils Payzed — un seul style partout.
@@ -64,16 +64,21 @@ export const TextLink: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> =
 const fieldBase =
   'w-full h-14 px-4 rounded-2xl bg-neutral-100 border-2 border-transparent text-[16px] font-semibold text-black placeholder:text-neutral-400 placeholder:font-medium focus:outline-none focus:border-black focus:bg-white transition-colors';
 
-export const Field: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label?: string; hint?: string }> = ({
+export const Field: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label?: string; hint?: string; error?: string | false }> = ({
   label,
   hint,
+  error,
   className,
   ...rest
 }) => (
   <label className="block">
     {label && <span className="block text-[13px] font-semibold text-neutral-500 mb-1.5 px-1">{label}</span>}
-    <input className={cx(fieldBase, className)} {...rest} />
-    {hint && <span className="block text-[13px] text-neutral-500 mt-1.5 px-1">{hint}</span>}
+    <input className={cx(fieldBase, error && 'border-red-500 focus:border-red-500', className)} aria-invalid={Boolean(error)} {...rest} />
+    {error ? (
+      <span className="block text-[13px] text-red-600 mt-1.5 px-1">{error}</span>
+    ) : (
+      hint && <span className="block text-[13px] text-neutral-500 mt-1.5 px-1">{hint}</span>
+    )}
   </label>
 );
 
@@ -93,6 +98,7 @@ export const AmountField: React.FC<{
     <span className="flex items-center h-16 px-4 rounded-2xl bg-neutral-100 border-2 border-transparent focus-within:border-black focus-within:bg-white transition-colors">
       <input
         inputMode="numeric"
+        enterKeyHint="done"
         autoComplete="off"
         autoFocus={autoFocus}
         placeholder="0"
@@ -263,6 +269,52 @@ export function ChoiceGrid<T extends string>({
     </div>
   );
 }
+
+/* ---------- Vérification avant exécution ---------- */
+
+/**
+ * Récapitulatif d'une opération financière avant validation.
+ * Le bouton est verrouillé dès le premier appui : impossible d'exécuter deux fois.
+ */
+export const ReviewView: React.FC<{
+  amount: string;
+  caption?: string;
+  rows: [string, React.ReactNode][];
+  confirmLabel: string;
+  onConfirm: () => void;
+  onEdit: () => void;
+}> = ({ amount, caption, rows, confirmLabel, onConfirm, onEdit }) => {
+  const [busy, setBusy] = useState(false);
+  const fired = useRef(false);
+  const confirm = () => {
+    if (fired.current) return;
+    fired.current = true;
+    setBusy(true);
+    // Court temps de traitement : retour visuel clair, et aucun double déclenchement possible
+    setTimeout(onConfirm, 700);
+  };
+  return (
+    <div className="space-y-5">
+      <div className="text-center pt-1">
+        <p className="text-[13px] font-semibold text-neutral-500">{caption ?? 'Vous allez payer'}</p>
+        <p className="text-[32px] font-extrabold tracking-tight">{amount}</p>
+      </div>
+      <List>
+        {rows.map(([k, v]) => (
+          <Row key={k} title={<span className="text-neutral-500 font-medium">{k}</span>} trailing={<span className="text-[15px] font-semibold text-right max-w-[62%] break-words">{v}</span>} />
+        ))}
+      </List>
+      <div className="space-y-2">
+        <Button className="w-full" onClick={confirm} disabled={busy} icon={busy ? <Loader2 className="w-5 h-5 animate-spin" /> : undefined}>
+          {busy ? 'Traitement…' : confirmLabel}
+        </Button>
+        <Button variant="ghost" className="w-full" onClick={onEdit} disabled={busy}>
+          Modifier
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 /* ---------- Écran de confirmation ---------- */
 

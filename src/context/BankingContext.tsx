@@ -17,16 +17,21 @@ import {
   INITIAL_VAULTS,
 } from '../data/initialData';
 import { formatTransactionDate } from '../utils/formatters';
+import { sha256 } from '../utils/sha256';
 
-export type ModalType = 'qr' | 'scan' | 'services' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'vaults' | null;
+export type ModalType = 'qr' | 'scan' | 'services' | 'withdraw' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'vaults' | null;
 
 export interface ModalParams {
   /** Id d'un service du catalogue (ex. « senelec », « wave »). */
   provider?: string;
+  /** Bénéficiaire connu (lien profond payzed://pay?name=…&tel=…). */
+  payee?: { name: string; phone: string };
 }
 
 type NewTransaction = Omit<Transaction, 'id' | 'timestamp' | 'date' | 'reference' | 'currency'> & {
   currency?: CurrencyCode;
+  /** Ne pas toucher au solde maintenant (ex. entrée SIM encore en attente). */
+  skipBalance?: boolean;
   reference?: string;
   date?: string;
   timestamp?: number;
@@ -38,12 +43,15 @@ interface BankingContextType {
   setActiveTab: (tab: TabType) => void;
   isBalanceHidden: boolean;
   toggleHideBalance: () => void;
-  isOnboardingOpen: boolean;
-  setIsOnboardingOpen: (val: boolean) => void;
 
   // Sécurité
   isLocked: boolean;
   unlockApp: (enteredPin: string) => boolean;
+  /** Vérifie le code PIN sans changer l'état (accès au mode test). */
+  verifyPin: (enteredPin: string) => boolean;
+  /** Mode test : donne accès aux simulations SIM (protégé par le code PIN). */
+  testMode: boolean;
+  setTestMode: (on: boolean) => void;
   lockApp: () => void;
   changePin: (newPin: string) => void;
   isBiometricsEnabled: boolean;
@@ -72,6 +80,10 @@ interface BankingContextType {
   // Transactions
   transactions: Transaction[];
   addTransaction: (tx: NewTransaction) => Transaction;
+  updateTransaction: (id: string, patch: Partial<Transaction>) => void;
+  removeTransactions: (ids: string[]) => void;
+  /** Ajustement de solde lié au règlement d'une opération (moteur SIM). */
+  adjustBalance: (delta: number) => void;
   toggleArchiveTransaction: (id: string) => void;
   selectedTransaction: Transaction | null;
   setSelectedTransaction: (tx: Transaction | null) => void;
@@ -108,6 +120,8 @@ const BankingContext = createContext<BankingContextType | undefined>(undefined);
 const PREFIX = 'payzed_';
 const DATA_VERSION = 'v12_history';
 const DEFAULT_PIN = '1234';
+/** Le code PIN n'est jamais stocké en clair : seule son empreinte SHA-256 l'est. */
+const hashPin = (pin: string) => sha256(`payzed-pin:${pin}`);
 
 /* ---------- Stockage local sécurisé (jamais de crash si données corrompues) ---------- */
 
@@ -154,10 +168,22 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [activeTab, setActiveTabState] = useState<TabType>('comptes');
   const [isBalanceHidden, setIsBalanceHidden] = useState<boolean>(() => load('hide_balance', false));
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   const [isLocked, setIsLocked] = useState(true);
-  const [pin, setPin] = useState<string>(() => load('pin', DEFAULT_PIN, (v) => typeof v === 'string' && /^\d{4}$/.test(v)));
+  const [pinHash, setPinHash] = useState<string>(() => {
+    // Migration : ancien code stocké en clair → empreinte, puis suppression
+    const legacy = load<string | null>('pin', null, (v) => typeof v === 'string' && /^\d{4}$/.test(v));
+    if (legacy) {
+      try {
+        localStorage.removeItem(PREFIX + 'pin');
+      } catch {
+        // ignore
+      }
+      return hashPin(legacy);
+    }
+    return load('pin_hash', hashPin(DEFAULT_PIN), (v) => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v));
+  });
+  const [testMode, setTestMode] = useState<boolean>(() => load('test_mode', false));
   const [isBiometricsEnabled, setIsBiometricsEnabled] = useState<boolean>(() => load('biometrics', true));
 
   const currency: CurrencyCode = 'XOF';
@@ -179,7 +205,8 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Persistance
   useEffect(() => save('hide_balance', isBalanceHidden), [isBalanceHidden]);
-  useEffect(() => save('pin', pin), [pin]);
+  useEffect(() => save('pin_hash', pinHash), [pinHash]);
+  useEffect(() => save('test_mode', testMode), [testMode]);
   useEffect(() => save('biometrics', isBiometricsEnabled), [isBiometricsEnabled]);
   useEffect(() => save('balance', balance), [balance]);
   useEffect(() => save('user', user), [user]);
@@ -207,12 +234,14 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   /* ---------- Sécurité ---------- */
 
   const unlockApp = useCallback((entered: string) => {
-    if (entered === pin) {
+    if (hashPin(entered) === pinHash) {
       setIsLocked(false);
       return true;
     }
     return false;
-  }, [pin]);
+  }, [pinHash]);
+
+  const verifyPin = useCallback((entered: string) => hashPin(entered) === pinHash, [pinHash]);
 
   const unlockWithBiometrics = useCallback(() => setIsLocked(false), []);
 
@@ -220,11 +249,11 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setActiveModal(null);
     setSelectedTransaction(null);
     setIsLocked(true);
-  }, []);
+  }, [setActiveModal]);
 
   const changePin = useCallback((newPin: string) => {
     if (/^\d{4}$/.test(newPin)) {
-      setPin(newPin);
+      setPinHash(hashPin(newPin));
       showToast('Nouveau code PIN enregistré');
     } else {
       showToast('Le code PIN doit comporter 4 chiffres');
@@ -289,8 +318,9 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   /** Enregistre une opération ET met à jour le solde (une seule fois). */
   const addTransaction = useCallback((tx: NewTransaction) => {
     const timestamp = tx.timestamp ?? Date.now();
+    const { skipBalance, ...data } = tx;
     const newTx: Transaction = {
-      ...tx,
+      ...data,
       id: `tx_${timestamp}_${Math.random().toString(36).slice(2, 7)}`,
       timestamp,
       date: tx.date ?? (tx.timestamp ? formatTransactionDate(tx.timestamp) : "À l'instant"),
@@ -299,8 +329,23 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     setTransactions((prev) => [newTx, ...prev].sort((a, b) => b.timestamp - a.timestamp));
     // Débit = montant + frais (les frais ne s'appliquent qu'aux sorties)
-    setBalance((prev) => prev + tx.amount - (tx.amount < 0 ? tx.fee || 0 : 0));
+    if (!skipBalance) setBalance((prev) => prev + tx.amount - (tx.amount < 0 ? tx.fee || 0 : 0));
     return newTx;
+  }, []);
+
+  const updateTransaction = useCallback((id: string, patch: Partial<Transaction>) => {
+    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    setSelectedTransaction((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
+  }, []);
+
+  const removeTransactions = useCallback((ids: string[]) => {
+    const set = new Set(ids);
+    setTransactions((prev) => prev.filter((t) => !set.has(t.id)));
+    setSelectedTransaction((prev) => (prev && set.has(prev.id) ? null : prev));
+  }, []);
+
+  const adjustBalance = useCallback((delta: number) => {
+    if (Number.isFinite(delta) && delta !== 0) setBalance((prev) => Math.round(prev + delta));
   }, []);
 
   const setBalanceTo = useCallback((amount: number) => {
@@ -422,7 +467,8 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       // ignore
     }
     setIsBalanceHidden(false);
-    setPin(DEFAULT_PIN);
+    setPinHash(hashPin(DEFAULT_PIN));
+    setTestMode(false);
     setIsBiometricsEnabled(true);
     setBalance(INITIAL_BALANCE);
     setUser(INITIAL_USER);
@@ -441,10 +487,11 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setActiveTab,
         isBalanceHidden,
         toggleHideBalance,
-        isOnboardingOpen,
-        setIsOnboardingOpen,
         isLocked,
         unlockApp,
+        verifyPin,
+        testMode,
+        setTestMode,
         lockApp,
         changePin,
         isBiometricsEnabled,
@@ -465,6 +512,9 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateSpendingLimit,
         transactions,
         addTransaction,
+        updateTransaction,
+        removeTransactions,
+        adjustBalance,
         toggleArchiveTransaction,
         selectedTransaction,
         setSelectedTransaction,
