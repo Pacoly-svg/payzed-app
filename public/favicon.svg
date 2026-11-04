@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="pz_grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141414"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </linearGradient>
+  </defs>
+  <!-- Background Squircle -->
+  <rect width="512" height="512" rx="124" fill="url(#pz_grad)"/>
+  <rect width="510" height="510" x="1" y="1" rx="123" fill="none" stroke="#262626" stroke-width="2"/>
+  
+  <!-- Stylized Payzed Emblem / P-Z Glyph -->
+  <g transform="translate(142, 106) scale(1.1)">
+    <!-- Iconic P glyph from Payzed Official Logo -->
+    <path fill="#FFFFFF" d="M94.869,129.346L50,73.748h153.139c0,0,45.844,13.656,45.844,75.106c0,0-1.951,56.574-54.623,65.352l-69.254,1.951 l-0.975,40.967L50,291.263l15.607-108.27c0,0,10.729-32.188,50.721-35.115l17.557-0.975l-4.877,43.893l27.311-26.336h29.262 c0,0,17.557-0.975,16.582-19.508c0,0-4.877-19.508-20.484-18.533C166.073,127.395,94.869,129.346,94.869,129.346z"/>
+    <!-- Sleek subtle Z-dot / accent -->
+    <circle cx="166" cy="180" r="10" fill="#FFFFFF"/>
+  </g>
+</svg>
