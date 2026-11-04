@@ -87,31 +87,19 @@ export const StatsScreen: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-4 pb-24 bg-white text-black">
-      {/* 1. En-tête & Sélecteur de Période Épuré */}
-      <div className="flex items-center justify-between px-1">
-        <div>
-          <h1 className="text-xl font-extrabold text-black tracking-tight">
-            Statistiques & Flux
-          </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Analyse de trésorerie & santé financière
-          </p>
-        </div>
-
-        {/* Sélecteur Monochrome 3 boutons */}
-        <div className="flex items-center space-x-1 bg-neutral-100 p-1 rounded-2xl border border-neutral-200/90 shadow-2xs">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-extrabold tracking-tight">Stats</h1>
+        <div className="flex items-center bg-neutral-100 p-1 rounded-full">
           {(['week', 'month', 'year'] as const).map((p) => {
             const labels = { week: 'Sem.', month: 'Mois', year: 'Année' };
-            const isSelected = period === p;
             return (
               <button
                 key={p}
+                type="button"
                 onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  isSelected
-                    ? 'bg-black text-white shadow-xs'
-                    : 'text-neutral-600 hover:text-black'
+                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                  period === p ? 'bg-black text-white' : 'text-neutral-600'
                 }`}
               >
                 {labels[p]}

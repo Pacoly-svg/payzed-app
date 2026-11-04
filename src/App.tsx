@@ -1,82 +1,86 @@
-import React from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { BankingProvider, useBanking } from './context/BankingContext';
 import { MobileFrame } from './components/common/MobileFrame';
 import { Header } from './components/common/Header';
 import { BottomNav } from './components/common/BottomNav';
 import { Toast } from './components/common/Toast';
 import { ComptesScreen } from './components/comptes/ComptesScreen';
-import { StatsScreen } from './components/statistiques/StatsScreen';
-import { CardsScreen } from './components/cartes/CardsScreen';
-import { SettingsScreen } from './components/parametres/SettingsScreen';
-
-// Modals & Screens
-import { QRCodeModal } from './components/modals/QRCodeModal';
-import { TransferModal } from './components/modals/TransferModal';
-import { SubscriptionsModal } from './components/modals/SubscriptionsModal';
-import { BillsModal } from './components/modals/BillsModal';
-import { TopUpModal } from './components/modals/TopUpModal';
-import { TransactionDetailsModal } from './components/modals/TransactionDetailsModal';
-import { NewCardModal } from './components/modals/NewCardModal';
-import { VaultsModal } from './components/modals/VaultsModal';
-import { OnboardingScreen } from './components/onboarding/OnboardingScreen';
 import { AppPinLock } from './components/security/AppPinLock';
 import { InAppNotificationBanner } from './components/common/InAppNotificationBanner';
 import { SplashScreen } from './components/common/SplashScreen';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
-const MainScreenContent: React.FC = () => {
+// Écrans et fenêtres chargés à la demande : démarrage plus rapide.
+const StatsScreen = lazy(() => import('./components/statistiques/StatsScreen').then((m) => ({ default: m.StatsScreen })));
+const CardsScreen = lazy(() => import('./components/cartes/CardsScreen').then((m) => ({ default: m.CardsScreen })));
+const SettingsScreen = lazy(() => import('./components/parametres/SettingsScreen').then((m) => ({ default: m.SettingsScreen })));
+const QRCodeModal = lazy(() => import('./components/modals/QRCodeModal').then((m) => ({ default: m.QRCodeModal })));
+const TransferModal = lazy(() => import('./components/modals/TransferModal').then((m) => ({ default: m.TransferModal })));
+const SubscriptionsModal = lazy(() => import('./components/modals/SubscriptionsModal').then((m) => ({ default: m.SubscriptionsModal })));
+const BillsModal = lazy(() => import('./components/modals/BillsModal').then((m) => ({ default: m.BillsModal })));
+const TopUpModal = lazy(() => import('./components/modals/TopUpModal').then((m) => ({ default: m.TopUpModal })));
+const TransactionDetailsModal = lazy(() => import('./components/modals/TransactionDetailsModal').then((m) => ({ default: m.TransactionDetailsModal })));
+const NewCardModal = lazy(() => import('./components/modals/NewCardModal').then((m) => ({ default: m.NewCardModal })));
+const VaultsModal = lazy(() => import('./components/modals/VaultsModal').then((m) => ({ default: m.VaultsModal })));
+
+const MODALS = {
+  qr: QRCodeModal,
+  transfer: TransferModal,
+  subscriptions: SubscriptionsModal,
+  bills: BillsModal,
+  topup: TopUpModal,
+  newCard: NewCardModal,
+  vaults: VaultsModal,
+} as const;
+
+const Screen: React.FC = () => {
   const { activeTab } = useBanking();
-
+  if (activeTab === 'comptes') return <ComptesScreen />;
   return (
-    <main className="flex-1 bg-white text-black">
-      {activeTab === 'comptes' && <ComptesScreen />}
-      {activeTab === 'statistiques' && <div className="px-4 py-3 bg-white min-h-full"><StatsScreen /></div>}
-      {activeTab === 'cartes' && <div className="px-4 py-3 bg-white min-h-full"><CardsScreen /></div>}
-      {activeTab === 'parametres' && <div className="px-4 py-3 bg-white min-h-full"><SettingsScreen /></div>}
-    </main>
+    <div className="px-5 pt-4 pb-8">
+      {activeTab === 'statistiques' && <StatsScreen />}
+      {activeTab === 'cartes' && <CardsScreen />}
+      {activeTab === 'parametres' && <SettingsScreen />}
+    </div>
   );
 };
 
 const PayzedApp: React.FC = () => {
-  const { isLocked } = useBanking();
-  const [showSplash, setShowSplash] = React.useState(true);
+  const { isLocked, activeTab, activeModal, selectedTransaction } = useBanking();
+  const [showSplash, setShowSplash] = useState(true);
+  const ActiveModal = activeModal ? MODALS[activeModal] : null;
 
   return (
-    <MobileFrame bottomNav={<BottomNav />}>
-      {/* Launch Splash Screen Animation */}
-      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+    <>
+      <MobileFrame header={<Header />} bottomNav={<BottomNav />} scrollKey={activeTab}>
+        <ErrorBoundary key={activeTab}>
+          <Suspense fallback={<div className="h-40" />}>
+            <Screen />
+          </Suspense>
+        </ErrorBoundary>
+      </MobileFrame>
 
-      {/* Top Interactive Push Notification Banner */}
+      <ErrorBoundary key={activeModal ?? 'none'}>
+        <Suspense fallback={null}>
+          {ActiveModal && <ActiveModal />}
+          {selectedTransaction && <TransactionDetailsModal />}
+        </Suspense>
+      </ErrorBoundary>
+
       <InAppNotificationBanner />
-
-      <Header />
-      <MainScreenContent />
-
-      {/* Global Modals */}
-      <QRCodeModal />
-      <TransferModal />
-      <SubscriptionsModal />
-      <BillsModal />
-      <TopUpModal />
-      <TransactionDetailsModal />
-      <NewCardModal />
-      <VaultsModal />
-
-      {/* Welcome / Onboarding Screen */}
-      <OnboardingScreen />
-
-      {/* 4-Digit Security PIN Lock Screen */}
       {isLocked && <AppPinLock />}
-
-      {/* Global Toast */}
       <Toast />
-    </MobileFrame>
+      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+    </>
   );
 };
 
 export default function App() {
   return (
-    <BankingProvider>
-      <PayzedApp />
-    </BankingProvider>
+    <ErrorBoundary fullScreen>
+      <BankingProvider>
+        <PayzedApp />
+      </BankingProvider>
+    </ErrorBoundary>
   );
 }

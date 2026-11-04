@@ -1,10 +1,12 @@
 import type { Transaction, UserProfile, VirtualCardData, SubscriptionItem, VaultItem } from '../types/banking';
 
+export const INITIAL_BALANCE = 3250000;
+
 export const INITIAL_USER: UserProfile = {
-  name: 'Mamadou Diop',
-  tag: '@m.diop',
-  phone: '+221 77 482 19 02',
-  email: 'mamadou.diop@payzed.sn',
+  name: 'COLY SENE',
+  tag: '@coly.sene',
+  phone: '+221 78 302 35 14',
+  email: '',
   avatarUrl: '',
   isVerified: true,
   tier: 'Compte Principal',
@@ -15,7 +17,7 @@ export const INITIAL_USER: UserProfile = {
 
 export const INITIAL_CARD: VirtualCardData = {
   id: 'card_pz_black_01',
-  cardholderName: 'MAMADOU DIOP',
+  cardholderName: 'COLY SENE',
   maskedNumber: '4532 •••• •••• 8829',
   fullNumber: '4532 8921 7394 8829',
   expiryMonth: '09',

@@ -2,14 +2,17 @@
 
 Application mobile de fintech et néo-banque moderne conçue avec **React 19**, **TypeScript**, **Tailwind CSS v4** et **Capacitor Android**.
 
-## ✨ Fonctionnalités clés
-- **Tableau de bord bancaire & Multi-comptes** : Solde en temps réel, QR code, masquage du solde, statistiques détaillées.
-- **Opérations financières** : Virements P2P & interbancaires, recharge de crédit, paiement de factures (Senelec, Woyofal, Rapido, etc.).
-- **Coffres-forts & Épargne sécurisée** : Verrouillage des fonds avec emojis Apple 3D, objectifs financiers et calcul d'intérêts.
-- **Cartes virtuelles & Physiques** : Gestion des plafonds de dépenses, blocage/déblocage instantané, sécurité biométrique.
-- **Simulateur de flux & Notifications** : Notification banner interactive, carillon audio, retours haptiques.
-- **Sécurité bancaire** : Écran de verrouillage à code PIN (4 chiffres) avec déverrouillage biométrique (Face ID / Empreinte).
-- **Export & Build mobile natif** : PWA installable et projet natif Android compilable en APK avec Capacitor.
+## ✨ Fonctionnalités
+- Solde, envoi d'argent, réception par QR code
+- Crédit téléphonique, factures (Senelec, Woyofal, Sen'Eau, Rapido), abonnements, coffres d'épargne
+- Carte virtuelle avec blocage, plafond, paiements en ligne / sans contact
+- Verrouillage par code PIN (1234 par défaut) et empreinte
+- Voir `AUDIT.md` pour le détail de la version 1.1.0
+
+**Prérequis :** Node.js 22+, Java 21 pour compiler Android.
+
+## 📲 Télécharger l'APK
+Chaque mise à jour sur `main` publie automatiquement l'APK dans l'onglet **Releases** du dépôt GitHub.
 
 ## 🚀 Installation & Développement
 

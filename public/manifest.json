@@ -1,29 +1,13 @@
 {
   "short_name": "Payzed",
-  "name": "Payzed — Mobile Banking",
+  "name": "Payzed",
   "icons": [
-    {
-      "src": "/android-chrome-192x192.png",
-      "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "any"
-    },
-    {
-      "src": "/android-chrome-512x512.png",
-      "type": "image/png",
-      "sizes": "512x512",
-      "purpose": "any"
-    },
-    {
-      "src": "/apple-touch-icon.png",
-      "type": "image/png",
-      "sizes": "180x180",
-      "purpose": "maskable"
-    }
+    { "src": "/android-chrome-192x192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },
+    { "src": "/android-chrome-512x512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" }
   ],
   "start_url": "/",
   "background_color": "#000000",
-  "theme_color": "#FFFFFF",
+  "theme_color": "#000000",
   "display": "standalone",
   "orientation": "portrait"
 }

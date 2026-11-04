@@ -1,21 +1,22 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { 
-  CurrencyCode, 
-  TabType, 
-  Transaction, 
-  UserProfile, 
-  VirtualCardData, 
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import type {
+  CurrencyCode,
+  TabType,
+  Transaction,
+  UserProfile,
+  VirtualCardData,
   SubscriptionItem,
-  VaultItem
+  VaultItem,
 } from '../types/banking';
-import { 
-  INITIAL_USER, 
-  INITIAL_CARD, 
-  INITIAL_TRANSACTIONS, 
+import {
+  INITIAL_BALANCE,
+  INITIAL_USER,
+  INITIAL_CARD,
+  INITIAL_TRANSACTIONS,
   INITIAL_SUBSCRIPTIONS,
-  INITIAL_VAULTS
+  INITIAL_VAULTS,
 } from '../data/initialData';
-import { convertCurrency, formatTransactionDate } from '../utils/formatters';
+import { formatTransactionDate } from '../utils/formatters';
 
 export interface InAppNotification {
   id: string;
@@ -27,65 +28,47 @@ export interface InAppNotification {
   timestamp: number;
 }
 
+export type ModalType = 'qr' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'newCard' | 'vaults' | null;
+
+type NewTransaction = Omit<Transaction, 'id' | 'timestamp' | 'date' | 'reference' | 'currency'> & {
+  currency?: CurrencyCode;
+  reference?: string;
+  date?: string;
+  timestamp?: number;
+};
+
 interface BankingContextType {
-  // Navigation & Display
+  // Navigation
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
   isBalanceHidden: boolean;
   toggleHideBalance: () => void;
-  isPhoneMockup: boolean;
-  setIsPhoneMockup: (val: boolean) => void;
   isOnboardingOpen: boolean;
   setIsOnboardingOpen: (val: boolean) => void;
 
-  // Theming (Dark Mode)
-  isDarkMode: boolean;
-  toggleDarkMode: () => void;
-
-  // In-App Notification System & Simulation
+  // Notifications in-app
   inAppNotification: InAppNotification | null;
   triggerNotification: (notif: Omit<InAppNotification, 'id' | 'timestamp'>) => void;
   dismissNotification: () => void;
-  isNotifSoundEnabled: boolean;
-  toggleNotifSound: () => void;
-  playNotificationSound: () => void;
-  requestNotificationPermission: () => Promise<boolean>;
-  scheduleSimulation: (config: {
-    type: 'in' | 'out';
-    platform: string;
-    personName: string;
-    amount: number;
-    delaySeconds: number;
-    recipientPhone?: string;
-    recipientEmail?: string;
-    customTimestamp?: number;
-    customDate?: string;
-  }) => void;
-  scheduledCountdown: number | null;
 
-  // Security & 4-Digit PIN Lock
+  // Sécurité
   isLocked: boolean;
-  pin: string;
+  isDefaultPin: boolean;
   unlockApp: (enteredPin: string) => boolean;
   lockApp: () => void;
   changePin: (newPin: string) => void;
   isBiometricsEnabled: boolean;
   toggleBiometrics: () => void;
-  unlockWithBiometrics: () => boolean;
+  unlockWithBiometrics: () => void;
 
-  // Currency & Balance
+  // Compte
   currency: CurrencyCode;
-  setCurrency: (code: CurrencyCode) => void;
   balance: number;
-  setBalance: (amount: number) => void;
-
-  // User Profile
   user: UserProfile;
   updateUser: (updates: Partial<UserProfile>) => void;
 
-  // Virtual Card
+  // Carte
   card: VirtualCardData;
-  updateCard: (updates: Partial<VirtualCardData>) => void;
   toggleFreezeCard: () => void;
   toggleOnlinePayments: () => void;
   toggleContactless: () => void;
@@ -93,717 +76,321 @@ interface BankingContextType {
 
   // Transactions
   transactions: Transaction[];
-  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'date' | 'reference'> & { reference?: string; date?: string; brandLogo?: string; timestamp?: number }) => void;
+  addTransaction: (tx: NewTransaction) => void;
   toggleArchiveTransaction: (id: string) => void;
   selectedTransaction: Transaction | null;
   setSelectedTransaction: (tx: Transaction | null) => void;
 
-  // Subscriptions
+  // Abonnements
   subscriptions: SubscriptionItem[];
   toggleSubscription: (id: string) => void;
   addSubscription: (sub: Omit<SubscriptionItem, 'id'>) => void;
 
-  // Coffres / Vaults Épargne
+  // Coffres
   vaults: VaultItem[];
   depositToVault: (vaultId: string, amount: number) => void;
   withdrawFromVault: (vaultId: string, amount: number) => void;
   toggleVaultLock: (vaultId: string) => void;
   createVault: (vault: Omit<VaultItem, 'id' | 'currentAmount'>) => void;
 
-  // Canaux de transfert personnalisés
-  customPlatforms: { id: string; name: string; logoUrl: string }[];
-  addCustomPlatform: (platform: { name: string; logoUrl: string }) => void;
-  removeCustomPlatform: (id: string) => void;
+  // Fenêtres
+  activeModal: ModalType;
+  setActiveModal: (modal: ModalType) => void;
 
-  // Interactive Modals
-  activeModal: 'qr' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'newCard' | 'vaults' | null;
-  setActiveModal: (modal: 'qr' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'newCard' | 'vaults' | null) => void;
-
-  // Feedback Toast
+  // Messages
   toastMessage: string | null;
   showToast: (msg: string) => void;
 
-  // Demo Reset
   resetToDemoDefaults: () => void;
 }
 
 const BankingContext = createContext<BankingContextType | undefined>(undefined);
 
-const STORAGE_KEYS = {
-  BALANCE: 'payzed_balance',
-  CURRENCY: 'payzed_currency',
-  HIDE_BALANCE: 'payzed_hide_balance',
-  CARD: 'payzed_card',
-  TRANSACTIONS: 'payzed_transactions',
-  USER: 'payzed_user',
-  SUBSCRIPTIONS: 'payzed_subscriptions',
-  VAULTS: 'payzed_vaults',
-  CUSTOM_PLATFORMS: 'payzed_custom_platforms',
-  PHONE_MOCKUP: 'payzed_phone_mockup',
-  ONBOARDING_SEEN: 'payzed_onboarding_seen',
-  SECURITY_PIN: 'payzed_security_pin',
-  DARK_MODE: 'payzed_dark_mode',
-  VERSION: 'payzed_data_version',
-};
+const PREFIX = 'payzed_';
+const DATA_VERSION = 'v11_stable';
+const DEFAULT_PIN = '1234';
 
-const CURRENT_VERSION = 'v10_vaults_receipt_haptics';
+/* ---------- Stockage local sécurisé (jamais de crash si données corrompues) ---------- */
 
-function playBankChime() {
+function load<T>(key: string, fallback: T, validate?: (v: unknown) => boolean): T {
   try {
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.15);
-    gain.gain.setValueAtTime(0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.45);
+    const raw = localStorage.getItem(PREFIX + key);
+    if (raw === null) return fallback;
+    const parsed = JSON.parse(raw) as unknown;
+    if (validate && !validate(parsed)) return fallback;
+    return parsed as T;
   } catch {
-    // Ignore audio restriction errors
+    return fallback;
+  }
+}
+
+function save(key: string, value: unknown) {
+  try {
+    localStorage.setItem(PREFIX + key, JSON.stringify(value));
+  } catch {
+    // Stockage plein ou indisponible : l'app continue de fonctionner en mémoire.
+  }
+}
+
+/** Ancienne version des données → on repart propre une seule fois. */
+function migrateStorage() {
+  try {
+    if (localStorage.getItem(PREFIX + 'data_version') === DATA_VERSION) return;
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith(PREFIX))
+      .forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem(PREFIX + 'data_version', DATA_VERSION);
+  } catch {
+    // ignore
+  }
+}
+
+const isArray = (v: unknown) => Array.isArray(v);
+const isObject = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v);
+const isFiniteNumber = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+
+function vibrate(pattern: number | number[]) {
+  try {
+    navigator.vibrate?.(pattern);
+  } catch {
+    // ignore
   }
 }
 
 export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Ensure document is always clean light mode
-  if (typeof document !== 'undefined') {
-    document.documentElement.classList.remove('dark');
-    localStorage.removeItem(STORAGE_KEYS.DARK_MODE);
-  }
+  // Migration exécutée une seule fois, avant la lecture des autres états.
+  useState(migrateStorage);
 
-  const isOutdated = typeof window !== 'undefined' && localStorage.getItem(STORAGE_KEYS.VERSION) !== CURRENT_VERSION;
-  if (isOutdated) {
-    localStorage.removeItem(STORAGE_KEYS.TRANSACTIONS);
-    localStorage.removeItem(STORAGE_KEYS.USER);
-    localStorage.removeItem(STORAGE_KEYS.SUBSCRIPTIONS);
-    localStorage.removeItem(STORAGE_KEYS.CURRENCY);
-    localStorage.removeItem(STORAGE_KEYS.BALANCE);
-    localStorage.setItem(STORAGE_KEYS.VERSION, CURRENT_VERSION);
-  }
+  const [activeTab, setActiveTabState] = useState<TabType>('comptes');
+  const [isBalanceHidden, setIsBalanceHidden] = useState<boolean>(() => load('hide_balance', false));
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
-  // Pure Light Mode (Always False)
-  const isDarkMode = false;
-  const toggleDarkMode = () => {};
+  const [isLocked, setIsLocked] = useState(true);
+  const [pin, setPin] = useState<string>(() => load('pin', DEFAULT_PIN, (v) => typeof v === 'string' && /^\d{4}$/.test(v)));
+  const [isBiometricsEnabled, setIsBiometricsEnabled] = useState<boolean>(() => load('biometrics', true));
 
-  // Security Lock State - Initial open requires PIN
-  const [isLocked, setIsLocked] = useState<boolean>(true);
-  const [pin, setPinState] = useState<string>(() => {
-    return localStorage.getItem(STORAGE_KEYS.SECURITY_PIN) || '1234';
-  });
+  const currency: CurrencyCode = 'XOF';
+  const [balance, setBalance] = useState<number>(() => load('balance', INITIAL_BALANCE, isFiniteNumber));
+  const [user, setUser] = useState<UserProfile>(() => load('user', INITIAL_USER, isObject));
+  const [card, setCard] = useState<VirtualCardData>(() => load('card', INITIAL_CARD, isObject));
+  const [transactions, setTransactions] = useState<Transaction[]>(() => load('transactions', INITIAL_TRANSACTIONS, isArray));
+  const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>(() => load('subscriptions', INITIAL_SUBSCRIPTIONS, isArray));
+  const [vaults, setVaults] = useState<VaultItem[]>(() => load('vaults', INITIAL_VAULTS, isArray));
 
-  // In-App Notification System
-  const [inAppNotification, setInAppNotification] = useState<InAppNotification | null>(null);
-  const [scheduledCountdown, setScheduledCountdown] = useState<number | null>(null);
-
-  const [currency, setCurrencyState] = useState<CurrencyCode>(() => {
-    if (isOutdated) return 'XOF';
-    const saved = localStorage.getItem(STORAGE_KEYS.CURRENCY);
-    return (saved as CurrencyCode) || 'XOF';
-  });
-
-  const [balance, setBalanceState] = useState<number>(() => {
-    if (isOutdated) return 3250000;
-    const saved = localStorage.getItem(STORAGE_KEYS.BALANCE);
-    return saved ? Number(saved) : 3250000;
-  });
-
-  const [isBalanceHidden, setIsBalanceHidden] = useState<boolean>(() => {
-    return localStorage.getItem(STORAGE_KEYS.HIDE_BALANCE) === 'true';
-  });
-
-  const [activeTab, setActiveTab] = useState<TabType>('comptes');
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
-
-  const [isPhoneMockup, setIsPhoneMockup] = useState<boolean>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PHONE_MOCKUP);
-    return saved !== null ? saved === 'true' : true;
-  });
-
-  const [user, setUser] = useState<UserProfile>(() => {
-    if (isOutdated) return INITIAL_USER;
-    const saved = localStorage.getItem(STORAGE_KEYS.USER);
-    return saved ? JSON.parse(saved) : INITIAL_USER;
-  });
-
-  const [card, setCard] = useState<VirtualCardData>(() => {
-    if (isOutdated) return INITIAL_CARD;
-    const saved = localStorage.getItem(STORAGE_KEYS.CARD);
-    return saved ? JSON.parse(saved) : INITIAL_CARD;
-  });
-
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    if (isOutdated) return INITIAL_TRANSACTIONS;
-    const saved = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
-  });
-
-  const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>(() => {
-    if (isOutdated) return INITIAL_SUBSCRIPTIONS;
-    const saved = localStorage.getItem(STORAGE_KEYS.SUBSCRIPTIONS);
-    return saved ? JSON.parse(saved) : INITIAL_SUBSCRIPTIONS;
-  });
-
-  const [vaults, setVaults] = useState<VaultItem[]>(() => {
-    if (isOutdated) return INITIAL_VAULTS;
-    const saved = localStorage.getItem(STORAGE_KEYS.VAULTS);
-    return saved ? JSON.parse(saved) : INITIAL_VAULTS;
-  });
-
-  // Canaux de transfert personnalisés par l'utilisateur
-  const [customPlatforms, setCustomPlatforms] = useState<{ id: string; name: string; logoUrl: string }[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CUSTOM_PLATFORMS);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CUSTOM_PLATFORMS, JSON.stringify(customPlatforms));
-  }, [customPlatforms]);
-
-  const addCustomPlatform = ({ name, logoUrl }: { name: string; logoUrl: string }) => {
-    const newPlatform = {
-      id: `plat_${Date.now()}`,
-      name: name.trim(),
-      logoUrl: logoUrl.trim(),
-    };
-    setCustomPlatforms(prev => [...prev, newPlatform]);
-    showToast(`Canal « ${name.trim()} » ajouté`);
-  };
-
-  const removeCustomPlatform = (id: string) => {
-    setCustomPlatforms(prev => prev.filter(p => p.id !== id));
-    showToast('Canal supprimé');
-  };
-
-  const [activeModal, setActiveModal] = useState<'qr' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'newCard' | 'vaults' | null>(null);
+  const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [inAppNotification, setInAppNotification] = useState<InAppNotification | null>(null);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CURRENCY, currency);
-  }, [currency]);
+  // Persistance
+  useEffect(() => save('hide_balance', isBalanceHidden), [isBalanceHidden]);
+  useEffect(() => save('pin', pin), [pin]);
+  useEffect(() => save('biometrics', isBiometricsEnabled), [isBiometricsEnabled]);
+  useEffect(() => save('balance', balance), [balance]);
+  useEffect(() => save('user', user), [user]);
+  useEffect(() => save('card', card), [card]);
+  useEffect(() => save('transactions', transactions), [transactions]);
+  useEffect(() => save('subscriptions', subscriptions), [subscriptions]);
+  useEffect(() => save('vaults', vaults), [vaults]);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.BALANCE, balance.toString());
-  }, [balance]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.HIDE_BALANCE, isBalanceHidden.toString());
-  }, [isBalanceHidden]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CARD, JSON.stringify(card));
-  }, [card]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-  }, [transactions]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
-  }, [user]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SUBSCRIPTIONS, JSON.stringify(subscriptions));
-  }, [subscriptions]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.VAULTS, JSON.stringify(vaults));
-  }, [vaults]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PHONE_MOCKUP, isPhoneMockup.toString());
-  }, [isPhoneMockup]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SECURITY_PIN, pin);
-  }, [pin]);
-
-  const showToast = (msg: string) => {
+  // Toast unique (le timer précédent est annulé)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
     setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage((current) => (current === msg ? null : current));
-    }, 3500);
-  };
+    toastTimer.current = setTimeout(() => setToastMessage(null), 2800);
+  }, []);
 
-  const [isNotifSoundEnabled, setIsNotifSoundEnabled] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('payzed_notif_sound_enabled');
-      return saved !== null ? JSON.parse(saved) : true;
-    } catch {
-      return true;
-    }
-  });
+  const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const triggerNotification = useCallback((notif: Omit<InAppNotification, 'id' | 'timestamp'>) => {
+    vibrate([60, 40, 60]);
+    if (notifTimer.current) clearTimeout(notifTimer.current);
+    setInAppNotification({ ...notif, id: `notif_${Date.now()}`, timestamp: Date.now() });
+    notifTimer.current = setTimeout(() => setInAppNotification(null), 5000);
+  }, []);
 
-  const toggleNotifSound = () => {
-    setIsNotifSoundEnabled((prev) => {
-      const next = !prev;
-      localStorage.setItem('payzed_notif_sound_enabled', JSON.stringify(next));
-      if (next) playBankChime();
-      showToast(next ? 'Son des notifications activé' : 'Notifications en mode silencieux');
-      return next;
-    });
-  };
+  const dismissNotification = useCallback(() => setInAppNotification(null), []);
 
-  const playNotificationSound = () => {
-    playBankChime();
-  };
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    if (notifTimer.current) clearTimeout(notifTimer.current);
+  }, []);
 
-  const requestNotificationPermission = async (): Promise<boolean> => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      showToast('Notifications système non prises en charge par ce navigateur');
-      return false;
-    }
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        showToast('Notifications système autorisées avec succès');
-        return true;
-      } else {
-        showToast('Autorisation des notifications refusée');
-        return false;
-      }
-    } catch {
-      return false;
-    }
-  };
+  const setActiveTab = useCallback((tab: TabType) => {
+    setActiveTabState(tab);
+  }, []);
 
-  const triggerNotification = (notif: Omit<InAppNotification, 'id' | 'timestamp'>) => {
-    if (isNotifSoundEnabled) {
-      playBankChime();
-    }
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try {
-        navigator.vibrate([150, 75, 150]);
-      } catch {
-        // Ignore
-      }
-    }
-    const newNotif: InAppNotification = {
-      ...notif,
-      id: `notif_${Date.now()}`,
-      timestamp: Date.now(),
-    };
-    setInAppNotification(newNotif);
+  /* ---------- Sécurité ---------- */
 
-    // Try system OS notification if permitted
-    try {
-      if (typeof window !== 'undefined' && 'Notification' in window) {
-        if (Notification.permission === 'granted') {
-          new Notification(newNotif.title, {
-            body: newNotif.message,
-            icon: '/android-chrome-192x192.png',
-            badge: '/android-chrome-192x192.png',
-            tag: newNotif.id,
-          });
-        }
-      }
-    } catch {
-      // Ignore
-    }
-
-    // Auto dismiss after 6s
-    setTimeout(() => {
-      setInAppNotification((curr) => (curr?.id === newNotif.id ? null : curr));
-    }, 6000);
-  };
-
-  const dismissNotification = () => {
-    setInAppNotification(null);
-  };
-
-  const scheduleSimulation = (config: {
-    type: 'in' | 'out';
-    platform: string;
-    personName: string;
-    amount: number;
-    delaySeconds: number;
-    recipientPhone?: string;
-    recipientEmail?: string;
-    customTimestamp?: number;
-    customDate?: string;
-  }) => {
-    const isCredit = config.type === 'in';
-    const finalAmount = isCredit ? Math.abs(config.amount) : -Math.abs(config.amount);
-    const platformName = config.platform;
-    const person = config.personName || (isCredit ? 'Babacar Sy' : 'Fatou Sow');
-
-    const customMatch = customPlatforms.find(p => p.name.toLowerCase() === platformName.toLowerCase());
-    const brandKey = customMatch 
-      ? customMatch.logoUrl 
-      : platformName.toLowerCase().includes('wave')
-      ? 'wave'
-      : platformName.toLowerCase().includes('orange')
-      ? 'orange'
-      : platformName.toLowerCase().includes('paypal')
-      ? 'paypal'
-      : platformName.toLowerCase().includes('ecobank')
-      ? 'ecobank'
-      : platformName.toLowerCase().includes('sgbs')
-      ? 'sgbs'
-      : 'wave';
-
-    if (config.delaySeconds <= 0) {
-      // Immediate execution: Direct delivery, zero intrusive toast over notification!
-      addTransaction({
-        title: person,
-        subtitle: `${isCredit ? 'Virement reçu' : 'Transfert émis'} • ${platformName}`,
-        category: 'Revenus & Virements',
-        type: isCredit ? 'transfer_in' : 'transfer_out',
-        amount: finalAmount,
-        currency,
-        status: 'completed',
-        icon: isCredit ? 'ArrowDownLeft' : 'ArrowUpRight',
-        brandLogo: brandKey,
-        sender: isCredit ? `${person} (${platformName})` : undefined,
-        recipient: !isCredit ? (config.recipientPhone ? `${person} (${config.recipientPhone})` : `${person} (${platformName})`) : undefined,
-        recipientPhone: config.recipientPhone,
-        recipientEmail: config.recipientEmail,
-        fee: 0,
-        paymentMethod: platformName,
-        timestamp: config.customTimestamp,
-        date: config.customDate,
-      });
-
-      triggerNotification({
-        title: isCredit ? `Virement reçu (+${config.amount.toLocaleString()} ${currency})` : `Paiement émis (-${config.amount.toLocaleString()} ${currency})`,
-        message: isCredit 
-          ? `${person} vous a envoyé ${config.amount.toLocaleString()} ${currency} via ${platformName}.` 
-          : `Règlement de ${config.amount.toLocaleString()} ${currency} effectué à ${person} via ${platformName}.`,
-        brandLogo: brandKey,
-        amount: finalAmount,
-        type: config.type,
-      });
-      return;
-    }
-
-    // Delayed execution
-    showToast(`Simulation planifiée dans ${config.delaySeconds}s (${person} • ${config.amount.toLocaleString()} ${currency})`);
-    setScheduledCountdown(config.delaySeconds);
-
-    let currentSec = config.delaySeconds;
-    const interval = setInterval(() => {
-      currentSec -= 1;
-      if (currentSec <= 0) {
-        clearInterval(interval);
-        setScheduledCountdown(null);
-
-        addTransaction({
-          title: person,
-          subtitle: `${isCredit ? 'Virement reçu' : 'Transfert émis'} • ${platformName}`,
-          category: 'Revenus & Virements',
-          type: isCredit ? 'transfer_in' : 'transfer_out',
-          amount: finalAmount,
-          currency,
-          status: 'completed',
-          icon: isCredit ? 'ArrowDownLeft' : 'ArrowUpRight',
-          brandLogo: brandKey,
-          sender: isCredit ? `${person} (${platformName})` : undefined,
-          recipient: !isCredit ? (config.recipientPhone ? `${person} (${config.recipientPhone})` : `${person} (${platformName})`) : undefined,
-          recipientPhone: config.recipientPhone,
-          recipientEmail: config.recipientEmail,
-          fee: 0,
-          paymentMethod: platformName,
-          timestamp: config.customTimestamp,
-          date: config.customDate,
-        });
-
-        triggerNotification({
-          title: isCredit ? `Virement reçu (+${config.amount.toLocaleString()} ${currency})` : `Paiement émis (-${config.amount.toLocaleString()} ${currency})`,
-          message: isCredit 
-            ? `${person} vous a envoyé ${config.amount.toLocaleString()} ${currency} via ${platformName}.` 
-            : `Règlement de ${config.amount.toLocaleString()} ${currency} effectué à ${person} via ${platformName}.`,
-          brandLogo: brandKey,
-          amount: finalAmount,
-          type: config.type,
-        });
-      } else {
-        setScheduledCountdown(currentSec);
-      }
-    }, 1000);
-  };
-
-  const [isBiometricsEnabled, setIsBiometricsEnabled] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('payzed_biometrics_enabled');
-      return saved !== null ? JSON.parse(saved) : true;
-    } catch {
-      return true;
-    }
-  });
-
-  const toggleBiometrics = () => {
-    setIsBiometricsEnabled((prev) => {
-      const next = !prev;
-      localStorage.setItem('payzed_biometrics_enabled', JSON.stringify(next));
-      showToast(next ? 'Face ID & Empreinte activés' : 'Biométrie désactivée');
-      return next;
-    });
-  };
-
-  const unlockWithBiometrics = (): boolean => {
-    setIsLocked(false);
-    playBankChime();
-    showToast('Authentification biométrique réussie');
-    return true;
-  };
-
-  const unlockApp = (enteredPin: string): boolean => {
-    if (enteredPin === pin) {
+  const unlockApp = useCallback((entered: string) => {
+    if (entered === pin) {
       setIsLocked(false);
-      showToast('Session sécurisée ouverte');
       return true;
     }
     return false;
-  };
+  }, [pin]);
 
-  const lockApp = () => {
+  const unlockWithBiometrics = useCallback(() => setIsLocked(false), []);
+
+  const lockApp = useCallback(() => {
+    setActiveModal(null);
+    setSelectedTransaction(null);
     setIsLocked(true);
-    showToast('Application verrouillée');
-  };
+  }, []);
 
-  const changePin = (newPin: string) => {
-    if (newPin.length === 4 && /^\d{4}$/.test(newPin)) {
-      setPinState(newPin);
-      showToast('Nouveau code PIN enregistré avec succès');
+  const changePin = useCallback((newPin: string) => {
+    if (/^\d{4}$/.test(newPin)) {
+      setPin(newPin);
+      showToast('Nouveau code PIN enregistré');
     } else {
-      showToast('Erreur : le code PIN doit comporter 4 chiffres');
+      showToast('Le code PIN doit comporter 4 chiffres');
     }
-  };
+  }, [showToast]);
 
-  const toggleHideBalance = () => {
-    setIsBalanceHidden((prev) => !prev);
-  };
+  const toggleBiometrics = useCallback(() => {
+    setIsBiometricsEnabled((prev) => !prev);
+  }, []);
 
-  const setCurrency = (newCurrency: CurrencyCode) => {
-    if (newCurrency === currency) return;
-    const oldCurrency = currency;
-    const convertedBalance = convertCurrency(balance, oldCurrency, newCurrency);
-    setCurrencyState(newCurrency);
-    setBalanceState(convertedBalance);
+  const toggleHideBalance = useCallback(() => setIsBalanceHidden((p) => !p), []);
 
-    // Conversion automatique de toutes les transactions enregistrées
-    setTransactions((prev) =>
-      prev.map((tx) => ({
-        ...tx,
-        amount: convertCurrency(tx.amount, oldCurrency, newCurrency),
-        currency: newCurrency,
-      }))
-    );
+  /* ---------- Profil & carte ---------- */
 
-    // Conversion des montants d'abonnements récurrents
-    setSubscriptions((prev) =>
-      prev.map((sub) => ({
-        ...sub,
-        amount: convertCurrency(sub.amount, oldCurrency, newCurrency),
-        currency: newCurrency,
-      }))
-    );
-
-    showToast(`Devise convertie : ${newCurrency}`);
-  };
-
-  const setBalance = (newAmount: number) => {
-    setBalanceState(newAmount);
-    showToast('Solde mis à jour avec succès');
-  };
-
-  const updateUser = (updates: Partial<UserProfile>) => {
+  const updateUser = useCallback((updates: Partial<UserProfile>) => {
     setUser((prev) => ({ ...prev, ...updates }));
-    showToast('Profil mis à jour');
-  };
+  }, []);
 
-  const updateCard = (updates: Partial<VirtualCardData>) => {
-    setCard((prev) => ({ ...prev, ...updates }));
-  };
-
-  const toggleFreezeCard = () => {
-    setCard((prev) => {
-      const nextState = !prev.isFrozen;
-      showToast(nextState ? 'Carte verrouillée par sécurité' : 'Carte déverrouillée et active');
-      return { ...prev, isFrozen: nextState };
-    });
-  };
-
-  const toggleOnlinePayments = () => {
-    setCard((prev) => {
-      const nextState = !prev.onlinePaymentsEnabled;
-      showToast(nextState ? 'Paiements en ligne activés' : 'Paiements en ligne désactivés');
-      return { ...prev, onlinePaymentsEnabled: nextState };
-    });
-  };
-
-  const toggleContactless = () => {
-    setCard((prev) => {
-      const nextState = !prev.contactlessEnabled;
-      showToast(nextState ? 'Paiement sans-contact activé' : 'Sans-contact désactivé');
-      return { ...prev, contactlessEnabled: nextState };
-    });
-  };
-
-  const updateSpendingLimit = (limit: number) => {
+  const toggleFreezeCard = useCallback(() => {
+    setCard((prev) => ({ ...prev, isFrozen: !prev.isFrozen }));
+  }, []);
+  const toggleOnlinePayments = useCallback(() => {
+    setCard((prev) => ({ ...prev, onlinePaymentsEnabled: !prev.onlinePaymentsEnabled }));
+  }, []);
+  const toggleContactless = useCallback(() => {
+    setCard((prev) => ({ ...prev, contactlessEnabled: !prev.contactlessEnabled }));
+  }, []);
+  const updateSpendingLimit = useCallback((limit: number) => {
     setCard((prev) => ({ ...prev, spendingLimit: limit }));
-    showToast('Plafond mensuel ajusté');
-  };
+  }, []);
 
-  const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp' | 'date' | 'reference'> & { reference?: string; date?: string; brandLogo?: string; timestamp?: number }) => {
-    const timestamp = tx.timestamp || Date.now();
+  /* ---------- Transactions ---------- */
+
+  /** Enregistre une opération ET met à jour le solde (une seule fois). */
+  const addTransaction = useCallback((tx: NewTransaction) => {
+    const timestamp = tx.timestamp ?? Date.now();
     const newTx: Transaction = {
       ...tx,
-      id: `tx_${timestamp}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `tx_${timestamp}_${Math.random().toString(36).slice(2, 7)}`,
       timestamp,
-      date: tx.date || (tx.timestamp ? formatTransactionDate(tx.timestamp) : "À l'instant"),
-      reference: tx.reference || `PAYZ-TX-${Math.floor(100000 + Math.random() * 900000)}`,
-      currency,
+      date: tx.date ?? (tx.timestamp ? formatTransactionDate(tx.timestamp) : "À l'instant"),
+      reference: tx.reference ?? `PZD-${Math.floor(100000 + Math.random() * 900000)}`,
+      currency: tx.currency ?? 'XOF',
     };
-
     setTransactions((prev) => [newTx, ...prev].sort((a, b) => b.timestamp - a.timestamp));
-    setBalanceState((prev) => prev + tx.amount);
-    showToast(`Transaction enregistrée : ${tx.amount > 0 ? '+' : ''}${tx.amount.toLocaleString()} ${currency}`);
-  };
+    setBalance((prev) => prev + tx.amount);
+  }, []);
 
-  const toggleArchiveTransaction = (id: string) => {
-    setTransactions((prev) =>
-      prev.map((tx) => {
-        if (tx.id === id) {
-          const nextArchived = !tx.isArchived;
-          showToast(nextArchived ? 'Transaction masquée et archivée' : 'Transaction désarchivée');
-          return { ...tx, isArchived: nextArchived };
-        }
-        return tx;
-      })
-    );
-    setSelectedTransaction((prev) => {
-      if (prev && prev.id === id) {
-        return { ...prev, isArchived: !prev.isArchived };
-      }
-      return prev;
-    });
-  };
+  const toggleArchiveTransaction = useCallback((id: string) => {
+    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, isArchived: !t.isArchived } : t)));
+    setSelectedTransaction((prev) => (prev && prev.id === id ? { ...prev, isArchived: !prev.isArchived } : prev));
+  }, []);
 
-  const toggleSubscription = (id: string) => {
+  /* ---------- Abonnements ---------- */
+
+  const toggleSubscription = useCallback((id: string) => {
     setSubscriptions((prev) =>
-      prev.map((sub) => {
-        if (sub.id === id) {
-          const nextStatus = sub.status === 'active' ? 'paused' : 'active';
-          showToast(`Abonnement ${sub.name} : ${nextStatus === 'active' ? 'Actif' : 'Suspendu'}`);
-          return { ...sub, status: nextStatus };
-        }
-        return sub;
-      })
+      prev.map((s) => (s.id === id ? { ...s, status: s.status === 'active' ? 'paused' : 'active' } : s)),
     );
-  };
+  }, []);
 
-  const addSubscription = (sub: Omit<SubscriptionItem, 'id'>) => {
-    const newSub: SubscriptionItem = {
-      ...sub,
-      id: `sub_${Date.now()}`,
-    };
-    setSubscriptions((prev) => [newSub, ...prev]);
-    showToast(`Abonnement ${sub.name} ajouté`);
-  };
+  const addSubscription = useCallback((sub: Omit<SubscriptionItem, 'id'>) => {
+    setSubscriptions((prev) => [{ ...sub, id: `sub_${Date.now()}` }, ...prev]);
+  }, []);
 
-  const depositToVault = (vaultId: string, amount: number) => {
-    if (amount <= 0) return;
+  /* ---------- Coffres ---------- */
+
+  const depositToVault = useCallback((vaultId: string, amount: number) => {
+    if (!(amount > 0)) return;
+    const vault = vaults.find((v) => v.id === vaultId);
+    if (!vault) return;
     if (amount > balance) {
-      showToast('Solde disponible insuffisant');
+      showToast('Solde insuffisant');
       return;
     }
-    const targetVault = vaults.find(v => v.id === vaultId);
-    if (!targetVault) return;
-
-    setBalanceState(prev => prev - amount);
-    setVaults(prev => prev.map(v => v.id === vaultId ? { ...v, currentAmount: v.currentAmount + amount } : v));
-    
+    setVaults((prev) => prev.map((v) => (v.id === vaultId ? { ...v, currentAmount: v.currentAmount + amount } : v)));
+    // addTransaction débite le solde : pas de double débit.
     addTransaction({
-      title: `Dépôt Coffre • ${targetVault.name}`,
-      subtitle: `Épargne sécurisée vers ${targetVault.emoji} ${targetVault.name}`,
+      title: `Coffre ${vault.name}`,
+      subtitle: 'Dépôt vers coffre',
       category: 'Services & Abonnements',
       type: 'transfer_out',
       amount: -amount,
-      currency,
       status: 'completed',
       icon: 'Shield',
-      paymentMethod: 'Compte Principal Payzed',
+      paymentMethod: 'Compte principal',
       fee: 0,
     });
+    showToast('Dépôt effectué');
+  }, [vaults, balance, addTransaction, showToast]);
 
-    showToast(`${amount.toLocaleString()} ${currency} déposés dans le coffre`);
-  };
-
-  const withdrawFromVault = (vaultId: string, amount: number) => {
-    if (amount <= 0) return;
-    const targetVault = vaults.find(v => v.id === vaultId);
-    if (!targetVault) return;
-    if (targetVault.isLocked) {
-      showToast('Ce coffre est verrouillé. Déverrouillez-le d\'abord.');
+  const withdrawFromVault = useCallback((vaultId: string, amount: number) => {
+    if (!(amount > 0)) return;
+    const vault = vaults.find((v) => v.id === vaultId);
+    if (!vault) return;
+    if (vault.isLocked) {
+      showToast('Ce coffre est verrouillé');
       return;
     }
-    if (amount > targetVault.currentAmount) {
-      showToast('Fonds insuffisants dans le coffre');
+    if (amount > vault.currentAmount) {
+      showToast('Montant supérieur au coffre');
       return;
     }
-
-    setVaults(prev => prev.map(v => v.id === vaultId ? { ...v, currentAmount: v.currentAmount - amount } : v));
-    setBalanceState(prev => prev + amount);
-
+    setVaults((prev) => prev.map((v) => (v.id === vaultId ? { ...v, currentAmount: v.currentAmount - amount } : v)));
     addTransaction({
-      title: `Retrait Coffre • ${targetVault.name}`,
-      subtitle: `Récupération de fonds vers le compte courant`,
+      title: `Coffre ${vault.name}`,
+      subtitle: 'Retrait vers compte',
       category: 'Revenus & Virements',
       type: 'transfer_in',
-      amount: amount,
-      currency,
+      amount,
       status: 'completed',
       icon: 'ArrowDownLeft',
-      paymentMethod: 'Coffre Épargne Payzed',
+      paymentMethod: 'Coffre Payzed',
       fee: 0,
     });
+    showToast('Retrait effectué');
+  }, [vaults, addTransaction, showToast]);
 
-    showToast(`${amount.toLocaleString()} ${currency} récupérés sur votre compte`);
-  };
+  const toggleVaultLock = useCallback((vaultId: string) => {
+    setVaults((prev) => prev.map((v) => (v.id === vaultId ? { ...v, isLocked: !v.isLocked } : v)));
+  }, []);
 
-  const toggleVaultLock = (vaultId: string) => {
-    setVaults(prev => prev.map(v => {
-      if (v.id === vaultId) {
-        const nextLock = !v.isLocked;
-        showToast(`Coffre ${v.name} : ${nextLock ? 'Verrouillé' : 'Déverrouillé'}`);
-        return { ...v, isLocked: nextLock };
-      }
-      return v;
-    }));
-  };
+  const createVault = useCallback((v: Omit<VaultItem, 'id' | 'currentAmount'>) => {
+    setVaults((prev) => [{ ...v, id: `vault_${Date.now()}`, currentAmount: 0 }, ...prev]);
+    showToast(`Coffre « ${v.name} » créé`);
+  }, [showToast]);
 
-  const createVault = (v: Omit<VaultItem, 'id' | 'currentAmount'>) => {
-    const newVault: VaultItem = {
-      ...v,
-      id: `vault_${Date.now()}`,
-      currentAmount: 0,
-    };
-    setVaults(prev => [newVault, ...prev]);
-    showToast(`Nouveau coffre « ${v.name} » créé`);
-  };
+  /* ---------- Réinitialisation ---------- */
 
-  const resetToDemoDefaults = () => {
-    setCurrencyState('XOF');
-    setBalanceState(3250000);
+  const resetToDemoDefaults = useCallback(() => {
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith(PREFIX))
+        .forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem(PREFIX + 'data_version', DATA_VERSION);
+    } catch {
+      // ignore
+    }
     setIsBalanceHidden(false);
+    setPin(DEFAULT_PIN);
+    setIsBiometricsEnabled(true);
+    setBalance(INITIAL_BALANCE);
     setUser(INITIAL_USER);
     setCard(INITIAL_CARD);
     setTransactions(INITIAL_TRANSACTIONS);
     setSubscriptions(INITIAL_SUBSCRIPTIONS);
-    localStorage.clear();
-    localStorage.setItem(STORAGE_KEYS.VERSION, CURRENT_VERSION);
-    showToast('Données réinitialisées (3 250 000 FCFA - Sénégal)');
-  };
+    setVaults(INITIAL_VAULTS);
+    setActiveTabState('comptes');
+    showToast('Données réinitialisées');
+  }, [showToast]);
 
   return (
     <BankingContext.Provider
@@ -812,23 +399,13 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setActiveTab,
         isBalanceHidden,
         toggleHideBalance,
-        isPhoneMockup,
-        setIsPhoneMockup,
         isOnboardingOpen,
         setIsOnboardingOpen,
-        isDarkMode,
-        toggleDarkMode,
         inAppNotification,
         triggerNotification,
         dismissNotification,
-        isNotifSoundEnabled,
-        toggleNotifSound,
-        playNotificationSound,
-        requestNotificationPermission,
-        scheduleSimulation,
-        scheduledCountdown,
         isLocked,
-        pin,
+        isDefaultPin: pin === DEFAULT_PIN,
         unlockApp,
         lockApp,
         changePin,
@@ -836,13 +413,10 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         toggleBiometrics,
         unlockWithBiometrics,
         currency,
-        setCurrency,
         balance,
-        setBalance,
         user,
         updateUser,
         card,
-        updateCard,
         toggleFreezeCard,
         toggleOnlinePayments,
         toggleContactless,
@@ -860,9 +434,6 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         withdrawFromVault,
         toggleVaultLock,
         createVault,
-        customPlatforms,
-        addCustomPlatform,
-        removeCustomPlatform,
         activeModal,
         setActiveModal,
         toastMessage,
@@ -875,10 +446,9 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useBanking = () => {
   const context = useContext(BankingContext);
-  if (!context) {
-    throw new Error('useBanking must be used within a BankingProvider');
-  }
+  if (!context) throw new Error('useBanking must be used within a BankingProvider');
   return context;
 };

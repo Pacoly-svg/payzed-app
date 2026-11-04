@@ -37,8 +37,8 @@ export const NewCardModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-sm rounded-3xl bg-white border border-neutral-200 text-black overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
+      <div className="relative w-full max-w-[480px] rounded-t-[28px] bg-white text-black overflow-y-auto overscroll-contain flex flex-col max-h-[90%] animate-sheet-up app-safe-bottom">
         
         {/* En-tête Monochrome */}
         <div className="flex items-center justify-between p-4 border-b border-neutral-100">
