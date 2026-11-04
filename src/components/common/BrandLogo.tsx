@@ -214,10 +214,10 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({ brand, className = 'w-10 h
   // Fallback propre monogramme
   return (
     <div 
-      className={`rounded-2xl flex items-center justify-center overflow-hidden shrink-0 bg-neutral-100 text-neutral-800 font-bold text-xs uppercase border border-neutral-200 ${className}`}
-      style={{ width: size, height: size }}
+      className={`rounded-2xl flex items-center justify-center overflow-hidden shrink-0 bg-black text-white font-bold uppercase ${className}`}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}
     >
-      {brand ? brand.substring(0, 3) : 'BNK'}
+      {brand ? brand.trim().charAt(0) : '?'}
     </div>
   );
 };

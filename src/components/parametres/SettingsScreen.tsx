@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Check, ChevronRight, Lock, RotateCcw, ScanFace, Trash2 } from 'lucide-react';
+import { Camera, ChevronRight, Fingerprint, KeyRound, Lock, RotateCcw } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
+import { Sheet } from '../common/Sheet';
+import { Button, Field, IconBox, List, PageTitle, Row, SectionTitle, Toggle } from '../ui';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).map((n) => n[0] ?? '').join('').slice(0, 2).toUpperCase() || 'PZ';
@@ -29,37 +31,14 @@ function resizeImage(file: File, max = 256): Promise<string> {
   });
 }
 
-const Toggle: React.FC<{ on: boolean; onClick: () => void; label: string }> = ({ on, onClick, label }) => (
-  <button
-    type="button"
-    role="switch"
-    aria-checked={on}
-    aria-label={label}
-    onClick={onClick}
-    className={`w-12 h-7 rounded-full p-0.5 shrink-0 transition-colors ${on ? 'bg-black' : 'bg-neutral-300'}`}
-  >
-    <span className={`block w-6 h-6 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : ''}`} />
-  </button>
-);
-
 export const SettingsScreen: React.FC = () => {
-  const {
-    user,
-    updateUser,
-    lockApp,
-    changePin,
-    isBiometricsEnabled,
-    toggleBiometrics,
-    resetToDemoDefaults,
-    showToast,
-  } = useBanking();
-
+  const { user, updateUser, lockApp, isBiometricsEnabled, toggleBiometrics, resetToDemoDefaults, showToast } = useBanking();
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState(user.phone);
-  const [newPin, setNewPin] = useState('');
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [sheet, setSheet] = useState<'pin' | 'reset' | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Resynchroniser si le profil change ailleurs (réinitialisation)
   useEffect(() => {
     setName(user.name);
     setPhone(user.phone);
@@ -72,6 +51,7 @@ export const SettingsScreen: React.FC = () => {
     const n = name.trim();
     if (!n) return showToast('Le nom est obligatoire');
     updateUser({ name: n, phone: phone.trim() });
+    (document.activeElement as HTMLElement | null)?.blur();
     showToast('Profil enregistré');
   };
 
@@ -88,153 +68,155 @@ export const SettingsScreen: React.FC = () => {
     }
   };
 
-  const savePin = (e: React.FormEvent) => {
-    e.preventDefault();
-    changePin(newPin);
-    setNewPin('');
-  };
-
-  const input =
-    'w-full px-4 py-3 rounded-2xl bg-neutral-50 border border-neutral-200 text-base text-black font-semibold focus:outline-none focus:border-black';
-
   return (
-    <div className="space-y-5">
-      <h1 className="text-2xl font-extrabold tracking-tight">Profil</h1>
+    <div className="space-y-7">
+      <PageTitle>Profil</PageTitle>
 
-      {/* Profil */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="relative w-16 h-16 rounded-full shrink-0 active:scale-95 transition-transform"
-            aria-label="Changer la photo"
-          >
-            <span className="w-full h-full rounded-full overflow-hidden bg-black text-white flex items-center justify-center font-bold text-lg">
-              {user.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
-              ) : (
-                initialsOf(user.name)
-              )}
-            </span>
-            <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-black text-white border-2 border-white flex items-center justify-center">
-              <Camera className="w-3 h-3" />
-            </span>
-          </button>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-base truncate">{user.name}</p>
-            <p className="text-sm text-neutral-500 truncate">{user.phone}</p>
-          </div>
-          {user.avatarUrl && (
-            <button
-              type="button"
-              onClick={() => updateUser({ avatarUrl: '' })}
-              className="p-2.5 rounded-full bg-neutral-100 text-neutral-600 active:scale-95"
-              aria-label="Supprimer la photo"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPhoto} />
-        </div>
-
-        <form onSubmit={saveProfile} className="space-y-3">
-          <label className="block">
-            <span className="text-xs font-semibold text-neutral-500 mb-1 block">Nom complet</span>
-            <input className={input} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-          </label>
-          <label className="block">
-            <span className="text-xs font-semibold text-neutral-500 mb-1 block">Téléphone</span>
-            <input
-              className={input}
-              type="tel"
-              inputMode="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              autoComplete="tel"
-            />
-          </label>
-          {dirty && (
-            <button
-              type="submit"
-              className="w-full py-3.5 rounded-full bg-black text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-            >
-              <Check className="w-4 h-4" /> Enregistrer
-            </button>
-          )}
-        </form>
-      </section>
-
-      {/* Sécurité */}
-      <section className="rounded-3xl border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
-        <div className="flex items-center gap-3 p-4">
-          <ScanFace className="w-5 h-5 shrink-0" />
-          <span className="flex-1 font-semibold text-sm">Déverrouillage biométrique</span>
-          <Toggle on={isBiometricsEnabled} onClick={toggleBiometrics} label="Biométrie" />
-        </div>
-
-        <form onSubmit={savePin} className="flex items-center gap-3 p-4">
-          <Lock className="w-5 h-5 shrink-0" />
-          <input
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={4}
-            value={newPin}
-            onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-            placeholder="Nouveau code PIN"
-            className="flex-1 min-w-0 bg-transparent text-base font-semibold placeholder:text-neutral-400 placeholder:font-medium focus:outline-none"
-          />
-          <button
-            type="submit"
-            disabled={newPin.length !== 4}
-            className="px-4 py-2 rounded-full text-xs font-bold bg-black text-white disabled:bg-neutral-200 disabled:text-neutral-400"
-          >
-            OK
-          </button>
-        </form>
-
-        <button type="button" onClick={lockApp} className="w-full flex items-center gap-3 p-4 text-left active:bg-neutral-50">
-          <Lock className="w-5 h-5 shrink-0" />
-          <span className="flex-1 font-semibold text-sm">Verrouiller maintenant</span>
-          <ChevronRight className="w-4 h-4 text-neutral-400" />
+      {/* Identité */}
+      <section className="flex flex-col items-center text-center">
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="relative w-24 h-24 rounded-full active:scale-95 transition-transform"
+          aria-label="Changer la photo"
+        >
+          <span className="w-full h-full rounded-full overflow-hidden bg-black text-white flex items-center justify-center font-bold text-3xl">
+            {user.avatarUrl ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" /> : initialsOf(user.name)}
+          </span>
+          <span className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white border-2 border-white shadow flex items-center justify-center">
+            <Camera className="w-4 h-4" />
+          </span>
         </button>
-      </section>
-
-      {/* Réinitialisation */}
-      <section className="rounded-3xl border border-neutral-200 p-4">
-        {confirmReset ? (
-          <div className="space-y-3">
-            <p className="text-sm font-semibold">Tout remettre à zéro ? Profil, solde et historique seront restaurés.</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmReset(false)}
-                className="flex-1 py-3 rounded-full bg-neutral-100 font-bold text-sm"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  resetToDemoDefaults();
-                  setConfirmReset(false);
-                }}
-                className="flex-1 py-3 rounded-full bg-red-600 text-white font-bold text-sm"
-              >
-                Réinitialiser
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button type="button" onClick={() => setConfirmReset(true)} className="w-full flex items-center gap-3 text-left">
-            <RotateCcw className="w-5 h-5 shrink-0 text-red-600" />
-            <span className="flex-1 font-semibold text-sm text-red-600">Réinitialiser les données</span>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPhoto} />
+        <p className="mt-3 text-xl font-bold">{user.name}</p>
+        <p className="text-[15px] text-neutral-500">{user.phone}</p>
+        {user.avatarUrl && (
+          <button type="button" onClick={() => updateUser({ avatarUrl: '' })} className="mt-1 text-[13px] font-semibold text-neutral-500 py-1">
+            Retirer la photo
           </button>
         )}
       </section>
 
-      <p className="text-center text-xs text-neutral-400">Payzed · version {__APP_VERSION__}</p>
+      <form onSubmit={saveProfile} className="space-y-4">
+        <SectionTitle>Mes informations</SectionTitle>
+        <Field label="Nom complet" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
+        <Field label="Téléphone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
+        {dirty && (
+          <Button type="submit" className="w-full">
+            Enregistrer
+          </Button>
+        )}
+      </form>
+
+      {/* Sécurité */}
+      <section className="space-y-3">
+        <SectionTitle>Sécurité</SectionTitle>
+        <List>
+          <Row
+            icon={<IconBox><Fingerprint className="w-5 h-5" /></IconBox>}
+            title="Empreinte digitale"
+            subtitle="Déverrouiller sans code"
+            trailing={<Toggle on={isBiometricsEnabled} onChange={toggleBiometrics} label="Empreinte digitale" />}
+          />
+          <Row
+            onClick={() => setSheet('pin')}
+            icon={<IconBox><KeyRound className="w-5 h-5" /></IconBox>}
+            title="Changer le code PIN"
+            trailing={<ChevronRight className="w-5 h-5 text-neutral-400" />}
+          />
+          <Row
+            onClick={lockApp}
+            icon={<IconBox><Lock className="w-5 h-5" /></IconBox>}
+            title="Verrouiller l'application"
+            trailing={<ChevronRight className="w-5 h-5 text-neutral-400" />}
+          />
+        </List>
+      </section>
+
+      {/* Données */}
+      <section className="space-y-3">
+        <SectionTitle>Données</SectionTitle>
+        <List>
+          <Row
+            onClick={() => setSheet('reset')}
+            icon={<IconBox className="text-red-600"><RotateCcw className="w-5 h-5" /></IconBox>}
+            title={<span className="text-red-600">Réinitialiser l'application</span>}
+            trailing={<ChevronRight className="w-5 h-5 text-neutral-400" />}
+          />
+        </List>
+      </section>
+
+      <p className="text-center text-[13px] text-neutral-400 pb-2">Payzed · version {__APP_VERSION__}</p>
+
+      {sheet === 'pin' && <PinSheet onClose={() => setSheet(null)} />}
+      {sheet === 'reset' && (
+        <Sheet title="Réinitialiser ?" onClose={() => setSheet(null)}>
+          <p className="text-[15px] text-neutral-600">
+            Le profil, le solde, l'historique, les coffres et le code PIN reviendront à leur état de départ.
+          </p>
+          <div className="space-y-2 mt-6">
+            <Button
+              className="w-full bg-red-600"
+              onClick={() => {
+                resetToDemoDefaults();
+                setSheet(null);
+              }}
+            >
+              Réinitialiser
+            </Button>
+            <Button variant="secondary" className="w-full" onClick={() => setSheet(null)}>
+              Annuler
+            </Button>
+          </div>
+        </Sheet>
+      )}
     </div>
+  );
+};
+
+const PinSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const { changePin } = useBanking();
+  const [pin, setPin] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const mismatch = confirm.length === 4 && pin !== confirm;
+  const ready = pin.length === 4 && pin === confirm;
+  const clean = (v: string) => v.replace(/\D/g, '').slice(0, 4);
+
+  return (
+    <Sheet title="Nouveau code PIN" onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!ready) return;
+          changePin(pin);
+          onClose();
+        }}
+        className="space-y-4"
+      >
+        <Field
+          label="Nouveau code (4 chiffres)"
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          value={pin}
+          onChange={(e) => setPin(clean(e.target.value))}
+          className="tracking-[0.6em] text-center text-xl"
+          autoFocus
+        />
+        <Field
+          label="Confirmer le code"
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          value={confirm}
+          onChange={(e) => setConfirm(clean(e.target.value))}
+          className="tracking-[0.6em] text-center text-xl"
+          hint={mismatch ? 'Les deux codes ne correspondent pas' : undefined}
+        />
+        <Button type="submit" className="w-full" disabled={!ready}>
+          Enregistrer
+        </Button>
+      </form>
+    </Sheet>
   );
 };

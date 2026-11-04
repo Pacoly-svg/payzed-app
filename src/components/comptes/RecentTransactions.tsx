@@ -17,6 +17,7 @@ import { useBanking } from '../../context/BankingContext';
 import { formatCurrency, formatTransactionDate } from '../../utils/formatters';
 import { BrandLogo } from '../common/BrandLogo';
 import type { Transaction } from '../../types/banking';
+import { SectionTitle } from '../ui';
 
 export const ICONS: Record<string, React.ElementType> = {
   ArrowDownLeft,
@@ -52,10 +53,10 @@ const Row: React.FC<{ tx: Transaction; onSelect: (tx: Transaction) => void }> = 
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-bold truncate">{tx.title}</span>
-        <span className="block text-xs text-neutral-500 truncate">{formatTransactionDate(tx.timestamp)}</span>
+        <span className="block text-[15px] font-semibold truncate">{tx.title}</span>
+        <span className="block text-[13px] text-neutral-500 truncate mt-0.5">{formatTransactionDate(tx.timestamp)}</span>
       </span>
-      <span className={`text-sm font-bold whitespace-nowrap ${tx.amount > 0 ? 'text-emerald-600' : 'text-black'}`}>
+      <span className={`text-[15px] font-bold whitespace-nowrap ${tx.amount > 0 ? 'text-emerald-600' : 'text-black'}`}>
         {formatCurrency(tx.amount, tx.currency, { showSign: true })}
       </span>
     </button>
@@ -85,7 +86,7 @@ export const RecentTransactions: React.FC = () => {
 
   return (
     <section className="space-y-2">
-      <h2 className="text-lg font-bold tracking-tight">Historique</h2>
+      <SectionTitle>Historique</SectionTitle>
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 py-1">
         {filters.map((f) => (
@@ -96,7 +97,7 @@ export const RecentTransactions: React.FC = () => {
               setFilter(f.id);
               setLimit(PAGE);
             }}
-            className={`px-4 py-2 rounded-full text-sm font-semibold shrink-0 transition-colors ${
+            className={`h-9 px-4 rounded-full text-sm font-bold shrink-0 transition-colors ${
               filter === f.id ? 'bg-black text-white' : 'bg-neutral-100 text-neutral-700'
             }`}
           >
@@ -119,7 +120,7 @@ export const RecentTransactions: React.FC = () => {
         <button
           type="button"
           onClick={() => setLimit((l) => l + PAGE * 2)}
-          className="w-full py-3 rounded-full bg-neutral-100 text-sm font-bold active:scale-[0.98] transition-transform"
+          className="w-full h-11 rounded-full bg-neutral-100 text-sm font-bold active:scale-[0.98] transition-transform"
         >
           Voir plus
         </button>

@@ -5,6 +5,7 @@ import { formatCurrency, formatTransactionDate } from '../../utils/formatters';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
 import { ICONS } from '../comptes/RecentTransactions';
+import { Button, List, Row } from '../ui';
 
 export const TransactionDetailsModal: React.FC = () => {
   const { selectedTransaction: tx, setSelectedTransaction, toggleArchiveTransaction, showToast } = useBanking();
@@ -33,50 +34,51 @@ export const TransactionDetailsModal: React.FC = () => {
 
   return (
     <Sheet title="Détail" onClose={close}>
-      <div className="flex flex-col items-center text-center gap-2 pb-5">
+      <div className="flex flex-col items-center text-center pb-6">
         {tx.brandLogo ? (
-          <BrandLogo brand={tx.brandLogo} size={56} className="rounded-2xl" />
+          <BrandLogo brand={tx.brandLogo} size={64} className="rounded-3xl" />
         ) : (
-          <span className="w-14 h-14 rounded-2xl bg-neutral-100 flex items-center justify-center">
+          <span className="w-16 h-16 rounded-3xl bg-neutral-100 flex items-center justify-center">
             <Icon className="w-7 h-7" />
           </span>
         )}
-        <p className="font-bold text-base">{tx.title}</p>
-        <p className={`text-3xl font-extrabold ${tx.amount > 0 ? 'text-emerald-600' : ''}`}>
+        <p className="mt-4 text-[15px] font-semibold">{tx.title}</p>
+        <p className={`mt-1 text-[32px] font-extrabold tracking-tight ${tx.amount > 0 ? 'text-emerald-600' : ''}`}>
           {formatCurrency(tx.amount, tx.currency, { showSign: true })}
         </p>
-        <p className="text-sm text-neutral-500">{tx.subtitle}</p>
+        <p className="text-[13px] text-neutral-500 mt-0.5">{tx.subtitle}</p>
       </div>
 
-      <div className="rounded-2xl bg-neutral-50 divide-y divide-neutral-100">
+      <List>
         {rows
           .filter(([, v]) => Boolean(v))
           .map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-4 px-4 py-3 text-sm">
-              <span className="text-neutral-500 shrink-0">{k}</span>
-              <span className="font-semibold text-right break-words min-w-0">{v}</span>
-            </div>
+            <Row key={k} title={<span className="text-neutral-500 font-medium">{k}</span>} trailing={<span className="text-[15px] font-semibold text-right max-w-[60%] break-words">{v}</span>} />
           ))}
-        <button type="button" onClick={copyRef} className="w-full flex justify-between items-center gap-4 px-4 py-3 text-sm">
-          <span className="text-neutral-500">Référence</span>
-          <span className="font-mono font-semibold flex items-center gap-2">
-            {tx.reference}
-            {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-neutral-400" />}
-          </span>
-        </button>
-      </div>
+        <Row
+          onClick={copyRef}
+          title={<span className="text-neutral-500 font-medium">Référence</span>}
+          trailing={
+            <span className="flex items-center gap-2 text-[15px] font-semibold tabular-nums">
+              {tx.reference}
+              {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4 text-neutral-400" />}
+            </span>
+          }
+        />
+      </List>
 
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        className="w-full mt-5"
+        icon={tx.isArchived ? <ArchiveRestore className="w-5 h-5" /> : <Archive className="w-5 h-5" />}
         onClick={() => {
           toggleArchiveTransaction(tx.id);
+          showToast(tx.isArchived ? "Remise dans l'historique" : "Masquée de l'historique");
           close();
         }}
-        className="w-full mt-4 py-3.5 rounded-full bg-neutral-100 font-bold text-sm flex items-center justify-center gap-2"
       >
-        {tx.isArchived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
         {tx.isArchived ? "Remettre dans l'historique" : "Masquer de l'historique"}
-      </button>
+      </Button>
     </Sheet>
   );
 };

@@ -9,6 +9,15 @@ const config: CapacitorConfig = {
     // Pas d'inspection du code depuis un PC sur l'APK installé
     webContentsDebuggingEnabled: false,
   },
+  plugins: {
+    SystemBars: {
+      // L'app est toujours sur fond blanc : heure, réseau et batterie en NOIR,
+      // même quand le téléphone est en mode sombre.
+      style: 'LIGHT',
+      insetsHandling: 'css',
+      initialViewportFitValueHint: 'cover',
+    },
+  },
 };
 
 export default config;

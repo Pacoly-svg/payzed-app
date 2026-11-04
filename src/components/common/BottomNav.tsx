@@ -15,7 +15,7 @@ export const BottomNav: React.FC = () => {
   const { activeTab, setActiveTab } = useBanking();
 
   return (
-    <nav className="shrink-0 bg-white border-t border-neutral-100 app-safe-bottom">
+    <nav className="app-nav shrink-0 bg-white border-t border-neutral-100 app-safe-bottom">
       <div className="h-16 grid grid-cols-4">
         {ITEMS.map(({ id, label, icon: Icon }) => {
           const active = activeTab === id;

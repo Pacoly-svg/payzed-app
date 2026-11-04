@@ -18,17 +18,7 @@ import {
 } from '../data/initialData';
 import { formatTransactionDate } from '../utils/formatters';
 
-export interface InAppNotification {
-  id: string;
-  title: string;
-  message: string;
-  brandLogo?: string;
-  amount?: number;
-  type?: 'in' | 'out';
-  timestamp: number;
-}
-
-export type ModalType = 'qr' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'newCard' | 'vaults' | null;
+export type ModalType = 'qr' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'vaults' | null;
 
 type NewTransaction = Omit<Transaction, 'id' | 'timestamp' | 'date' | 'reference' | 'currency'> & {
   currency?: CurrencyCode;
@@ -46,14 +36,8 @@ interface BankingContextType {
   isOnboardingOpen: boolean;
   setIsOnboardingOpen: (val: boolean) => void;
 
-  // Notifications in-app
-  inAppNotification: InAppNotification | null;
-  triggerNotification: (notif: Omit<InAppNotification, 'id' | 'timestamp'>) => void;
-  dismissNotification: () => void;
-
   // Sécurité
   isLocked: boolean;
-  isDefaultPin: boolean;
   unlockApp: (enteredPin: string) => boolean;
   lockApp: () => void;
   changePin: (newPin: string) => void;
@@ -72,6 +56,7 @@ interface BankingContextType {
   toggleFreezeCard: () => void;
   toggleOnlinePayments: () => void;
   toggleContactless: () => void;
+  toggleAtmWithdrawals: () => void;
   updateSpendingLimit: (limit: number) => void;
 
   // Transactions
@@ -85,6 +70,7 @@ interface BankingContextType {
   subscriptions: SubscriptionItem[];
   toggleSubscription: (id: string) => void;
   addSubscription: (sub: Omit<SubscriptionItem, 'id'>) => void;
+  removeSubscription: (id: string) => void;
 
   // Coffres
   vaults: VaultItem[];
@@ -92,6 +78,7 @@ interface BankingContextType {
   withdrawFromVault: (vaultId: string, amount: number) => void;
   toggleVaultLock: (vaultId: string) => void;
   createVault: (vault: Omit<VaultItem, 'id' | 'currentAmount'>) => void;
+  deleteVault: (vaultId: string) => void;
 
   // Fenêtres
   activeModal: ModalType;
@@ -107,7 +94,7 @@ interface BankingContextType {
 const BankingContext = createContext<BankingContextType | undefined>(undefined);
 
 const PREFIX = 'payzed_';
-const DATA_VERSION = 'v11_stable';
+const DATA_VERSION = 'v12_history';
 const DEFAULT_PIN = '1234';
 
 /* ---------- Stockage local sécurisé (jamais de crash si données corrompues) ---------- */
@@ -149,14 +136,6 @@ const isArray = (v: unknown) => Array.isArray(v);
 const isObject = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isFiniteNumber = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
 
-function vibrate(pattern: number | number[]) {
-  try {
-    navigator.vibrate?.(pattern);
-  } catch {
-    // ignore
-  }
-}
-
 export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Migration exécutée une seule fois, avant la lecture des autres états.
   useState(migrateStorage);
@@ -180,7 +159,6 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [inAppNotification, setInAppNotification] = useState<InAppNotification | null>(null);
 
   // Persistance
   useEffect(() => save('hide_balance', isBalanceHidden), [isBalanceHidden]);
@@ -201,19 +179,8 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     toastTimer.current = setTimeout(() => setToastMessage(null), 2800);
   }, []);
 
-  const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const triggerNotification = useCallback((notif: Omit<InAppNotification, 'id' | 'timestamp'>) => {
-    vibrate([60, 40, 60]);
-    if (notifTimer.current) clearTimeout(notifTimer.current);
-    setInAppNotification({ ...notif, id: `notif_${Date.now()}`, timestamp: Date.now() });
-    notifTimer.current = setTimeout(() => setInAppNotification(null), 5000);
-  }, []);
-
-  const dismissNotification = useCallback(() => setInAppNotification(null), []);
-
   useEffect(() => () => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    if (notifTimer.current) clearTimeout(notifTimer.current);
   }, []);
 
   const setActiveTab = useCallback((tab: TabType) => {
@@ -268,6 +235,9 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const toggleContactless = useCallback(() => {
     setCard((prev) => ({ ...prev, contactlessEnabled: !prev.contactlessEnabled }));
   }, []);
+  const toggleAtmWithdrawals = useCallback(() => {
+    setCard((prev) => ({ ...prev, atmWithdrawalsEnabled: !prev.atmWithdrawalsEnabled }));
+  }, []);
   const updateSpendingLimit = useCallback((limit: number) => {
     setCard((prev) => ({ ...prev, spendingLimit: limit }));
   }, []);
@@ -304,6 +274,10 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const addSubscription = useCallback((sub: Omit<SubscriptionItem, 'id'>) => {
     setSubscriptions((prev) => [{ ...sub, id: `sub_${Date.now()}` }, ...prev]);
+  }, []);
+
+  const removeSubscription = useCallback((id: string) => {
+    setSubscriptions((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
   /* ---------- Coffres ---------- */
@@ -368,6 +342,26 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     showToast(`Coffre « ${v.name} » créé`);
   }, [showToast]);
 
+  const deleteVault = useCallback((vaultId: string) => {
+    const vault = vaults.find((v) => v.id === vaultId);
+    if (!vault) return;
+    setVaults((prev) => prev.filter((v) => v.id !== vaultId));
+    if (vault.currentAmount > 0) {
+      addTransaction({
+        title: `Coffre ${vault.name}`,
+        subtitle: 'Coffre fermé, fonds récupérés',
+        category: 'Revenus & Virements',
+        type: 'transfer_in',
+        amount: vault.currentAmount,
+        status: 'completed',
+        icon: 'ArrowDownLeft',
+        paymentMethod: 'Coffre Payzed',
+        fee: 0,
+      });
+    }
+    showToast('Coffre supprimé');
+  }, [vaults, addTransaction, showToast]);
+
   /* ---------- Réinitialisation ---------- */
 
   const resetToDemoDefaults = useCallback(() => {
@@ -401,11 +395,7 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         toggleHideBalance,
         isOnboardingOpen,
         setIsOnboardingOpen,
-        inAppNotification,
-        triggerNotification,
-        dismissNotification,
         isLocked,
-        isDefaultPin: pin === DEFAULT_PIN,
         unlockApp,
         lockApp,
         changePin,
@@ -420,6 +410,7 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         toggleFreezeCard,
         toggleOnlinePayments,
         toggleContactless,
+        toggleAtmWithdrawals,
         updateSpendingLimit,
         transactions,
         addTransaction,
@@ -429,11 +420,13 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         subscriptions,
         toggleSubscription,
         addSubscription,
+        removeSubscription,
         vaults,
         depositToVault,
         withdrawFromVault,
         toggleVaultLock,
         createVault,
+        deleteVault,
         activeModal,
         setActiveModal,
         toastMessage,

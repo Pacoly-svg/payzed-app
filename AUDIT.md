@@ -1,4 +1,23 @@
-# Audit Payzed — version 1.1.0 (stable)
+# Audit Payzed
+
+## Version 1.2.0
+
+| Retour | Correction |
+|---|---|
+| Heure, réseau et batterie invisibles (blanc sur blanc) | Le téléphone en mode sombre affichait les icônes système en blanc. Les icônes sont maintenant forcées en noir (`SystemBars.style = LIGHT`). |
+| Impossible de voir ce qu'on tape | Le clavier recouvrait les champs. L'app et les fenêtres remontent au-dessus du clavier, le champ actif est recentré, la barre du bas se cache pendant la saisie. `adjustResize` activé côté Android. Champs forcés en texte noir même en mode sombre. |
+| « Code par défaut : 1234 » visible | Ligne supprimée. Nouvel écran de verrouillage plus sobre. |
+| Crédit : montants imposés | Numéro + montant libre uniquement. |
+| Épargne mal faite | 3 vues claires : liste (total + progression), détail (ajouter / retirer, bloquer, supprimer), création (icône, nom, objectif). |
+| Abonnements « cliché IA » | Plus de pastilles ni de points : liste simple, détail (payer, pause, supprimer), ajout. |
+| Stats | Les anciens chiffres étaient inventés (multiplicateurs, pourcentages fixes). Tout est maintenant calculé sur les vraies opérations : 7 jours / 30 jours / 12 mois, graphique touchable, répartition réelle, plus grosses dépenses. |
+| Carte | Carte épurée, 3 actions (Afficher, Copier, Bloquer), dépenses réelles du mois vs plafond, plafond modifiable (montant libre), réglages paiements en ligne / sans contact / distributeur. |
+| Harmonisation | Une boîte à outils unique (`src/components/ui`) : mêmes tailles de texte, boutons, champs, listes et fenêtres partout. |
+| Recevoir | Vrai QR code scannable + Copier / Partager (faux scanner caméra retiré). |
+
+---
+
+## Version 1.1.0 (stable)
 
 ## 1. Bugs bloquants corrigés
 

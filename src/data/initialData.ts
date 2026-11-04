@@ -36,7 +36,52 @@ export const INITIAL_CARD: VirtualCardData = {
 const NOW = Date.now();
 const HOUR = 3600 * 1000;
 
-export const INITIAL_TRANSACTIONS: Transaction[] = [
+/* ---------- Historique de démo sur ~12 mois (déterministe) ---------- */
+
+function buildHistory(): Transaction[] {
+  const DAY = 24 * HOUR;
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const between = (a: number, b: number, step = 500) => Math.round((a + rnd() * (b - a)) / step) * step;
+  const out: Transaction[] = [];
+  let n = 0;
+  const add = (daysAgo: number, t: Omit<Transaction, 'id' | 'timestamp' | 'date' | 'reference' | 'currency' | 'status' | 'fee'>) => {
+    const timestamp = NOW - daysAgo * DAY - Math.round(rnd() * 10) * HOUR;
+    out.push({
+      ...t,
+      id: `tx_hist_${n++}`,
+      timestamp,
+      date: '',
+      reference: `PZD-${100000 + Math.floor(rnd() * 899999)}`,
+      currency: 'XOF',
+      status: 'completed',
+      fee: 0,
+    });
+  };
+
+  const contacts = ['Fatou Sow', 'Cheikh Ndiaye', 'Aminata Fall', 'Ousmane Ba'];
+  const shops = ['Auchan Sacré-Cœur', 'Carrefour Market', 'Pharmacie Mermoz', 'Station Total'];
+
+  for (let m = 0; m < 12; m++) {
+    const base = 8 + m * 30;
+    add(base + 1, { title: 'Salaire', subtitle: 'Virement reçu', category: 'Revenus & Virements', type: 'salary', amount: 850000, icon: 'ArrowDownLeft', sender: 'Employeur', paymentMethod: 'Virement bancaire' });
+    if (rnd() > 0.4) add(base + 9, { title: 'Prestation client', subtitle: 'Virement reçu via Wave', category: 'Revenus & Virements', type: 'transfer_in', amount: between(80000, 300000, 5000), icon: 'ArrowDownLeft', brandLogo: 'wave', sender: 'Client', paymentMethod: 'Wave' });
+    add(base + 3, { title: 'Senelec', subtitle: 'Facture électricité', category: 'Logement & Factures', type: 'bill', amount: -between(30000, 60000), icon: 'Zap', brandLogo: 'senelec', recipient: 'Senelec', paymentMethod: 'Compte Payzed' });
+    add(base + 6, { title: "Sen'Eau", subtitle: 'Facture eau', category: 'Logement & Factures', type: 'bill', amount: -between(10000, 20000), icon: 'Droplets', brandLogo: 'seneau', recipient: "Sen'Eau", paymentMethod: 'Compte Payzed' });
+    add(base + 14, { title: 'Woyofal', subtitle: 'Recharge électricité', category: 'Logement & Factures', type: 'bill', amount: -between(10000, 25000, 1000), icon: 'Zap', brandLogo: 'woyofal', recipient: 'Woyofal', paymentMethod: 'Compte Payzed' });
+    add(base + 2, { title: 'Spotify', subtitle: 'Abonnement', category: 'Services & Abonnements', type: 'subscription', amount: -5500, icon: 'Tv', brandLogo: 'spotify', recipient: 'Spotify', paymentMethod: 'Carte Payzed' });
+    for (let w = 0; w < 4; w++) {
+      add(base + w * 7 + 4, { title: 'Crédit Orange', subtitle: '+221 78 302 35 14', category: 'Télécom & Données', type: 'topup', amount: -between(2000, 10000, 1000), icon: 'Smartphone', brandLogo: 'orange', recipient: 'Orange', paymentMethod: 'Compte Payzed' });
+      add(base + w * 7 + 2, { title: shops[Math.floor(rnd() * shops.length)], subtitle: 'Paiement carte', category: 'Supermarché', type: 'card_payment', amount: -between(8000, 55000), icon: 'ShoppingBag', recipient: 'Commerçant', paymentMethod: 'Carte Payzed' });
+    }
+    if (rnd() > 0.3) add(base + 11, { title: 'Rapido', subtitle: 'Recharge badge', category: 'Transport & Mobilité', type: 'card_payment', amount: -between(10000, 25000, 5000), icon: 'CreditCard', brandLogo: 'rapido', recipient: 'Rapido', paymentMethod: 'Carte Payzed' });
+    const who = contacts[Math.floor(rnd() * contacts.length)];
+    add(base + 18, { title: who, subtitle: 'Envoi via Payzed', category: 'Revenus & Virements', type: 'transfer_out', amount: -between(20000, 120000, 5000), icon: 'ArrowUpRight', recipient: who, paymentMethod: 'Payzed' });
+  }
+  return out;
+}
+
+export const INITIAL_TRANSACTIONS: Transaction[] = ([
   {
     id: 'tx_payzed_in',
     title: 'Babacar Sy',
@@ -287,7 +332,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     locationCity: 'Dakar, Sénégal',
     locationCoords: { lat: 14.6975, lng: -17.4589 },
   },
-];
+] as Transaction[]).concat(buildHistory()).sort((a, b) => b.timestamp - a.timestamp);
 
 export const INITIAL_SUBSCRIPTIONS: SubscriptionItem[] = [
   {

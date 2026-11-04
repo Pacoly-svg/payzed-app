@@ -1,326 +1,223 @@
-import React, { useState } from 'react';
-import { 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  ShieldCheck, 
-  TrendingUp, 
-  Zap,
-  ShoppingBag,
-  Tv,
-  Home,
-  Smartphone,
-  Calendar
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ArrowDownLeft, ArrowUpRight, BarChart3, Car, FileText, Repeat, Send, ShoppingBag, Smartphone, Wallet } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { formatCurrency } from '../../utils/formatters';
-import { BrandLogo } from '../common/BrandLogo';
+import { EmptyState, IconBox, List, PageTitle, Row, SectionTitle, Segmented } from '../ui';
+import type { Transaction } from '../../types/banking';
+
+type Period = '7d' | '30d' | '12m';
+
+const DAY = 86_400_000;
+const WEEKDAYS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+const MONTHS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+const MONTHS_LONG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+/** Regroupe les catégories techniques en postes lisibles. */
+const GROUPS: { id: string; label: string; icon: React.ElementType; match: (t: Transaction) => boolean }[] = [
+  { id: 'bills', label: 'Factures', icon: FileText, match: (t) => t.category === 'Logement & Factures' || t.type === 'bill' },
+  { id: 'shopping', label: 'Courses & achats', icon: ShoppingBag, match: (t) => ['Supermarché', 'Alimentation', 'Alimentation & Restaurants', 'Loisirs & Shopping'].includes(t.category) },
+  { id: 'phone', label: 'Crédit & internet', icon: Smartphone, match: (t) => t.type === 'topup' || t.category === 'Télécom & Données' || t.category === 'Télécom' },
+  { id: 'subs', label: 'Abonnements', icon: Repeat, match: (t) => t.type === 'subscription' },
+  { id: 'transport', label: 'Transport', icon: Car, match: (t) => t.category === 'Transport & Mobilité' },
+  { id: 'send', label: 'Envois', icon: Send, match: (t) => t.type === 'transfer_out' },
+];
+const OTHER = { id: 'other', label: 'Autres', icon: Wallet };
+
+const isSavingsMove = (t: Transaction) => t.title.startsWith('Coffre ');
+
+interface Bucket {
+  label: string;
+  title: string;
+  start: number;
+  end: number;
+  total: number;
+}
+
+function buildBuckets(period: Period): Bucket[] {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (period === '12m') {
+    return Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+      const next = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      return { label: MONTHS[d.getMonth()], title: `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`, start: d.getTime(), end: next.getTime(), total: 0 };
+    });
+  }
+  const days = period === '7d' ? 7 : 30;
+  return Array.from({ length: days }, (_, i) => {
+    const start = today - (days - 1 - i) * DAY;
+    const d = new Date(start);
+    const showLabel = period === '7d' || i % 5 === 4 || i === days - 1;
+    return {
+      label: period === '7d' ? WEEKDAYS[d.getDay()] : showLabel ? String(d.getDate()) : '',
+      title: d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }),
+      start,
+      end: start + DAY,
+      total: 0,
+    };
+  });
+}
 
 export const StatsScreen: React.FC = () => {
-  const { transactions, currency } = useBanking();
-  const [period, setPeriod] = useState<'week' | 'month' | 'year'>('month');
+  const { transactions, setSelectedTransaction } = useBanking();
+  const [period, setPeriod] = useState<Period>('30d');
+  const [selected, setSelected] = useState<number | null>(null);
 
-  // Multiplicateurs réalistes selon la période sélectionnée
-  const periodMultiplier = period === 'week' ? 0.25 : period === 'year' ? 12 : 1;
+  const data = useMemo(() => {
+    const buckets = buildBuckets(period);
+    const from = buckets[0].start;
+    const inRange = transactions.filter((t) => t.timestamp >= from && !isSavingsMove(t));
+    const expenses = inRange.filter((t) => t.amount < 0);
+    const income = inRange.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+    const spent = expenses.reduce((s, t) => s + Math.abs(t.amount), 0);
 
-  const rawIncome = transactions
-    .filter((tx) => tx.amount > 0)
-    .reduce((sum, tx) => sum + tx.amount, 0);
+    for (const t of expenses) {
+      const b = buckets.find((x) => t.timestamp >= x.start && t.timestamp < x.end);
+      if (b) b.total += Math.abs(t.amount);
+    }
 
-  const rawExpenses = Math.abs(
-    transactions
-      .filter((tx) => tx.amount < 0)
-      .reduce((sum, tx) => sum + tx.amount, 0)
-  );
+    const groups = new Map<string, { label: string; icon: React.ElementType; total: number }>();
+    for (const t of expenses) {
+      const g = GROUPS.find((x) => x.match(t)) ?? OTHER;
+      const cur = groups.get(g.id) ?? { label: g.label, icon: g.icon, total: 0 };
+      cur.total += Math.abs(t.amount);
+      groups.set(g.id, cur);
+    }
+    const categories = [...groups.values()].sort((a, b) => b.total - a.total);
+    const top = [...expenses].sort((a, b) => a.amount - b.amount).slice(0, 3);
+    return { buckets, income, spent, categories, top };
+  }, [transactions, period]);
 
-  const totalIncome = Math.round((rawIncome > 0 ? rawIncome : 1245000) * periodMultiplier);
-  const totalExpenses = Math.round((rawExpenses > 0 ? rawExpenses : 769000) * periodMultiplier);
-  const netSavings = totalIncome - totalExpenses;
-  const savingsRate = totalIncome > 0 ? Math.max(0, Math.round((netSavings / totalIncome) * 100)) : 0;
-  const dailyAverage = Math.round(totalExpenses / (period === 'week' ? 7 : period === 'year' ? 365 : 30));
-
-  // Plus grosse dépense identifiée
-  const expenseList = transactions.filter((tx) => tx.amount < 0);
-  const largestTx = expenseList.length > 0 
-    ? expenseList.reduce((max, tx) => Math.abs(tx.amount) > Math.abs(max.amount) ? tx : max, expenseList[0])
-    : null;
-  const largestAmount = largestTx ? Math.abs(largestTx.amount) : 45000;
-  const largestTitle = largestTx ? largestTx.title : 'Facture Senelec';
-
-  // Répartition par catégorie structurée
-  const categories = [
-    {
-      name: 'Factures & Énergie',
-      sublabel: 'Senelec, Sen\'Eau, Rapido',
-      amount: Math.round(totalExpenses * 0.38),
-      percentage: 38,
-      brand: 'senelec',
-      icon: Home,
-      color: 'bg-black',
-    },
-    {
-      name: 'Télécoms & Pass Internet',
-      sublabel: 'Orange, Wave, Yas, Expresso',
-      amount: Math.round(totalExpenses * 0.28),
-      percentage: 28,
-      brand: 'orange',
-      icon: Smartphone,
-      color: 'bg-neutral-800',
-    },
-    {
-      name: 'Abonnements & SaaS',
-      sublabel: 'Claude, ChatGPT, Spotify',
-      amount: Math.round(totalExpenses * 0.20),
-      percentage: 20,
-      brand: 'claude',
-      icon: Tv,
-      color: 'bg-neutral-600',
-    },
-    {
-      name: 'Achats & Divers',
-      sublabel: 'Paiements carte et transferts',
-      amount: Math.round(totalExpenses * 0.14),
-      percentage: 14,
-      brand: 'payzed',
-      icon: ShoppingBag,
-      color: 'bg-neutral-400',
-    },
-  ];
+  const max = Math.max(1, ...data.buckets.map((b) => b.total));
+  const sel = selected !== null ? data.buckets[selected] : null;
+  const periodLabel = period === '7d' ? 'ces 7 derniers jours' : period === '30d' ? 'ces 30 derniers jours' : 'ces 12 derniers mois';
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-extrabold tracking-tight">Stats</h1>
-        <div className="flex items-center bg-neutral-100 p-1 rounded-full">
-          {(['week', 'month', 'year'] as const).map((p) => {
-            const labels = { week: 'Sem.', month: 'Mois', year: 'Année' };
+    <div className="space-y-7">
+      <PageTitle>Stats</PageTitle>
+
+      <Segmented
+        value={period}
+        onChange={(p) => {
+          setPeriod(p);
+          setSelected(null);
+        }}
+        options={[
+          { id: '7d', label: '7 jours' },
+          { id: '30d', label: '30 jours' },
+          { id: '12m', label: '12 mois' },
+        ]}
+      />
+
+      {/* Chiffres clés */}
+      <List>
+        <Row
+          icon={<IconBox><ArrowDownLeft className="w-5 h-5" /></IconBox>}
+          title="Reçu"
+          trailing={<span className="text-[17px] font-bold text-emerald-600 whitespace-nowrap">+{formatCurrency(data.income, 'XOF')}</span>}
+        />
+        <Row
+          icon={<IconBox><ArrowUpRight className="w-5 h-5" /></IconBox>}
+          title="Dépensé"
+          trailing={<span className="text-[17px] font-bold whitespace-nowrap">-{formatCurrency(data.spent, 'XOF')}</span>}
+        />
+      </List>
+
+      {/* Graphique des dépenses — une seule série, une seule couleur */}
+      <section className="space-y-3">
+        <div>
+          <p className="text-[13px] font-semibold text-neutral-500 first-letter:uppercase">{sel ? sel.title : `Dépenses ${periodLabel}`}</p>
+          <p className="text-[26px] font-extrabold tracking-tight">{formatCurrency(sel ? sel.total : data.spent, 'XOF')}</p>
+        </div>
+        <div
+          className="flex items-end h-40 border-b border-neutral-200"
+          style={{ gap: data.buckets.length > 12 ? 2 : 6 }}
+          role="img"
+          aria-label={`Dépenses par ${period === '12m' ? 'mois' : 'jour'}`}
+          onClick={(e) => e.target === e.currentTarget && setSelected(null)}
+        >
+          {data.buckets.map((b, i) => {
+            const h = b.total > 0 ? Math.max(4, (b.total / max) * 100) : 0;
+            const active = selected === i;
             return (
               <button
-                key={p}
+                key={b.start}
                 type="button"
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                  period === p ? 'bg-black text-white' : 'text-neutral-600'
-                }`}
+                onClick={() => setSelected(active ? null : i)}
+                aria-label={`${b.title} : ${formatCurrency(b.total, 'XOF')}`}
+                className="flex-1 h-full flex items-end"
               >
-                {labels[p]}
+                <span
+                  className={`w-full rounded-t-[4px] transition-colors ${
+                    active ? 'bg-black' : selected === null ? 'bg-black' : 'bg-neutral-300'
+                  }`}
+                  style={{ height: `${h}%` }}
+                />
               </button>
             );
           })}
         </div>
-      </div>
-
-      {/* 2. Carte Maîtresse : Capacité d'Épargne & Trésorerie Nette */}
-      <div className="p-5 rounded-3xl bg-neutral-950 text-white shadow-md relative overflow-hidden space-y-4">
-        {/* Glow discret */}
-        <div className="absolute top-0 right-0 w-44 h-44 rounded-full bg-neutral-800/40 blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center space-x-2 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-neutral-800 text-white flex items-center justify-center shrink-0">
-              <TrendingUp className="w-4 h-4 stroke-[2.2]" />
-            </div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 font-mono truncate">
-              Solde Net Épargné ({period === 'week' ? 'Semaine' : period === 'year' ? 'Année' : 'Mois'})
+        <div className="flex" style={{ gap: data.buckets.length > 12 ? 2 : 6 }}>
+          {data.buckets.map((b, i) => (
+            <span
+              key={b.start}
+              className={`flex-1 text-center text-[11px] whitespace-nowrap ${selected === i ? 'font-bold text-black' : 'text-neutral-500'}`}
+            >
+              {b.label}
             </span>
-          </div>
-
-          <span className="inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full bg-white/10 text-neutral-200 border border-white/15 font-bold shrink-0">
-            <ShieldCheck className="w-3 h-3 text-white" />
-            <span>Santé Excellente</span>
-          </span>
-        </div>
-
-        {/* Montant Net Positif */}
-        <div className="relative z-10 flex items-baseline justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <span className="text-xl sm:text-3xl font-black font-mono tracking-tight text-white block truncate">
-              +{formatCurrency(netSavings, currency)}
-            </span>
-            <p className="text-[11px] text-neutral-400 font-medium mt-0.5 truncate">
-              Excédent net conservé après règlement de vos charges
-            </p>
-          </div>
-
-          <div className="text-right shrink-0">
-            <span className="text-xl sm:text-2xl font-black font-mono text-white block">
-              {savingsRate}%
-            </span>
-            <span className="text-[9px] uppercase font-bold tracking-wider text-neutral-400 font-mono">
-              Taux d'Épargne
-            </span>
-          </div>
-        </div>
-
-        {/* Jauge proportionnelle Entrées vs Sorties */}
-        <div className="relative z-10 space-y-1.5 pt-1">
-          <div className="w-full h-2.5 rounded-full bg-neutral-800 overflow-hidden flex p-0.5 gap-0.5">
-            <div 
-              className="h-full bg-white rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(100, Math.round((totalIncome / (totalIncome + totalExpenses)) * 100))}%` }}
-              title="Entrées"
-            />
-            <div 
-              className="h-full bg-neutral-500 rounded-full transition-all duration-500 flex-1"
-              title="Sorties"
-            />
-          </div>
-          <div className="flex items-center justify-between text-[10px] font-mono font-medium text-neutral-400 gap-1">
-            <span className="text-white font-bold truncate">● Entrées : {formatCurrency(totalIncome, currency)}</span>
-            <span className="truncate text-right">● Sorties : {formatCurrency(totalExpenses, currency)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Cartes Jumelles Entrées & Sorties */}
-      <div className="grid grid-cols-2 gap-2.5">
-        {/* Entrées */}
-        <div className="p-4 rounded-3xl bg-neutral-50 border border-neutral-200/90 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-1.5">
-              <div className="w-6 h-6 rounded-lg bg-black text-white flex items-center justify-center shrink-0">
-                <ArrowDownLeft className="w-3.5 h-3.5 stroke-[2.2]" />
-              </div>
-              <span className="text-xs font-bold text-black">Entrées</span>
-            </div>
-            <span className="text-[10px] font-bold text-neutral-700 font-mono">
-              {Math.round((totalIncome / Math.max(1, totalIncome + totalExpenses)) * 100)}%
-            </span>
-          </div>
-
-          <div>
-            <span className="text-sm sm:text-base font-extrabold text-black font-mono tracking-tight block truncate">
-              {formatCurrency(totalIncome, currency)}
-            </span>
-            <span className="text-[10px] text-neutral-500 font-medium block mt-0.5">
-              Virements & flux reçus
-            </span>
-          </div>
-        </div>
-
-        {/* Sorties */}
-        <div className="p-4 rounded-3xl bg-neutral-50 border border-neutral-200/90 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-1.5">
-              <div className="w-6 h-6 rounded-lg bg-neutral-200 text-black flex items-center justify-center shrink-0">
-                <ArrowUpRight className="w-3.5 h-3.5 stroke-[2.2]" />
-              </div>
-              <span className="text-xs font-bold text-black">Sorties</span>
-            </div>
-            <span className="text-[10px] font-bold text-neutral-500 font-mono">
-              {Math.round((totalExpenses / Math.max(1, totalIncome + totalExpenses)) * 100)}%
-            </span>
-          </div>
-
-          <div>
-            <span className="text-sm sm:text-base font-extrabold text-neutral-900 font-mono tracking-tight block truncate">
-              {formatCurrency(totalExpenses, currency)}
-            </span>
-            <span className="text-[10px] text-neutral-500 font-medium block mt-0.5">
-              Dépenses & factures
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Indicateurs Clés de Trésorerie */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="p-3.5 rounded-2xl bg-white border border-neutral-200/90 shadow-2xs flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-neutral-100 border border-neutral-200 flex items-center justify-center text-black shrink-0">
-            <Calendar className="w-4 h-4 stroke-[2]" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">
-              Moyenne / Jour
-            </span>
-            <span className="text-xs font-bold font-mono text-black truncate block mt-0.5">
-              {formatCurrency(dailyAverage, currency)}/j
-            </span>
-          </div>
-        </div>
-
-        <div className="p-3.5 rounded-2xl bg-white border border-neutral-200/90 shadow-2xs flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-xl bg-neutral-100 border border-neutral-200 flex items-center justify-center text-black shrink-0">
-            <Zap className="w-4 h-4 stroke-[2]" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider truncate">
-              Pic Dépense
-            </span>
-            <span className="text-xs font-bold font-mono text-black truncate block mt-0.5" title={largestTitle}>
-              {formatCurrency(largestAmount, currency)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* 5. Répartition Visuelle & Segmentée des Dépenses (Apple Card Style) */}
-      <div className="p-5 rounded-3xl bg-white border border-neutral-200/90 shadow-2xs space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xs font-bold text-black uppercase tracking-wider">
-              Répartition des Dépenses
-            </h3>
-            <p className="text-[11px] text-neutral-500 font-medium">Par catégorie de règlement</p>
-          </div>
-          <span className="text-xs font-mono font-bold text-black">
-            {formatCurrency(totalExpenses, currency)}
-          </span>
-        </div>
-
-        {/* Barre Segmentée Multi-Teintes */}
-        <div className="w-full h-3 rounded-full bg-neutral-100 overflow-hidden flex gap-0.5 p-0.5 border border-neutral-200/60">
-          {categories.map((cat, idx) => (
-            <div
-              key={idx}
-              className={`h-full ${cat.color} first:rounded-l-full last:rounded-r-full transition-all duration-300`}
-              style={{ width: `${cat.percentage}%` }}
-              title={`${cat.name} : ${cat.percentage}%`}
-            />
           ))}
         </div>
+        <p className="text-[13px] text-neutral-500">Touchez une barre pour voir le détail.</p>
+      </section>
 
-        {/* Liste détaillée des postes avec BrandLogo et pourcentages */}
-        <div className="space-y-2.5 pt-1">
-          {categories.map((cat, idx) => {
-            return (
-              <div 
-                key={idx}
-                className="flex items-center justify-between p-2.5 rounded-2xl bg-neutral-50 hover:bg-neutral-100/80 border border-neutral-200/70 transition-all text-xs"
-              >
-                <div className="flex items-center space-x-2.5 min-w-0 flex-1 pr-2">
-                  <BrandLogo brand={cat.brand} size={32} className="rounded-xl shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-black truncate leading-tight">{cat.name}</p>
-                    <p className="text-[10px] text-neutral-500 font-medium truncate mt-0.5">{cat.sublabel}</p>
+      {/* Répartition */}
+      <section className="space-y-3">
+        <SectionTitle>Où va votre argent</SectionTitle>
+        {data.categories.length === 0 ? (
+          <EmptyState icon={<BarChart3 className="w-6 h-6" />} title="Aucune dépense" text={`Rien de dépensé ${periodLabel}.`} />
+        ) : (
+          <List>
+            {data.categories.map((c) => {
+              const share = data.spent > 0 ? Math.round((c.total / data.spent) * 100) : 0;
+              const Icon = c.icon;
+              return (
+                <div key={c.label} className="px-4 py-3.5">
+                  <div className="flex items-center gap-3">
+                    <IconBox>
+                      <Icon className="w-5 h-5" />
+                    </IconBox>
+                    <span className="flex-1 min-w-0 text-[15px] font-semibold truncate">{c.label}</span>
+                    <span className="text-right">
+                      <span className="block text-[15px] font-bold">{formatCurrency(c.total, 'XOF')}</span>
+                      <span className="block text-[13px] text-neutral-500">{share} %</span>
+                    </span>
+                  </div>
+                  <div className="mt-2.5 ml-14 h-1.5 rounded-full bg-white overflow-hidden">
+                    <div className="h-full rounded-full bg-black" style={{ width: `${share}%` }} />
                   </div>
                 </div>
+              );
+            })}
+          </List>
+        )}
+      </section>
 
-                <div className="text-right shrink-0 whitespace-nowrap">
-                  <span className="font-mono font-bold text-black block text-xs">
-                    {formatCurrency(cat.amount, currency)}
-                  </span>
-                  <span className="text-[10px] font-mono text-neutral-500 font-bold block">
-                    {cat.percentage}% du total
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 6. Bilan de Trésorerie Bancaire */}
-      <div className="p-4 rounded-3xl bg-neutral-50 border border-neutral-200/90 shadow-2xs space-y-2">
-        <div className="flex items-center space-x-2">
-          <ShieldCheck className="w-4 h-4 text-black" />
-          <h4 className="text-xs font-bold text-black uppercase tracking-wider">
-            Bilan de Trésorerie
-          </h4>
-        </div>
-        <p className="text-xs text-neutral-600 font-medium leading-relaxed">
-          Taux d'épargne net établi à <strong className="text-black font-bold font-mono">{savingsRate}%</strong> sur la période sélectionnée. Les prélèvements et factures récurrentes demeurent maîtrisés et conformes à vos plafonds autorisés.
-        </p>
-      </div>
+      {data.top.length > 0 && (
+        <section className="space-y-3">
+          <SectionTitle>Plus grosses dépenses</SectionTitle>
+          <List>
+            {data.top.map((t) => (
+              <Row
+                key={t.id}
+                onClick={() => setSelectedTransaction(t)}
+                title={t.title}
+                subtitle={new Date(t.timestamp).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+                trailing={<span className="text-[15px] font-bold whitespace-nowrap">{formatCurrency(t.amount, 'XOF', { showSign: true })}</span>}
+              />
+            ))}
+          </List>
+        </section>
+      )}
     </div>
   );
 };

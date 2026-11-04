@@ -1,374 +1,206 @@
 import React, { useState } from 'react';
-import { 
-  X, 
-  Repeat, 
-  Tv, 
-  Headphones, 
-  Sparkles, 
-  Shield, 
-  Wifi, 
-  Plus
-} from 'lucide-react';
+import { Plus, Repeat } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { formatCurrency } from '../../utils/formatters';
-import { triggerSuccessConfetti } from '../../utils/confetti';
 import { BrandLogo } from '../common/BrandLogo';
+import { Sheet } from '../common/Sheet';
+import { AmountField, Button, ChoiceGrid, EmptyState, Field, List, Row, parseAmount } from '../ui';
+import type { SubscriptionItem } from '../../types/banking';
 
-const ICON_MAP: Record<string, React.ElementType> = {
-  Tv,
-  Headphones,
-  Sparkles,
-  Shield,
-  Wifi,
+type View = { name: 'list' } | { name: 'detail'; id: string } | { name: 'add' };
+
+const SERVICES = [
+  { id: 'spotify', label: 'Spotify', amount: 3500 },
+  { id: 'netflix', label: 'Netflix', amount: 6500 },
+  { id: 'chatgpt', label: 'ChatGPT', amount: 13000 },
+  { id: 'claude', label: 'Claude', amount: 13000 },
+  { id: 'gemini', label: 'Gemini', amount: 13000 },
+  { id: 'autre', label: 'Autre', amount: 0 },
+] as const;
+type ServiceId = (typeof SERVICES)[number]['id'];
+
+const nextMonth = () => {
+  const d = new Date();
+  d.setMonth(d.getMonth() + 1);
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
 export const SubscriptionsModal: React.FC = () => {
-  const { 
-    activeModal, 
-    setActiveModal, 
-    subscriptions, 
-    toggleSubscription, 
-    addSubscription, 
-    currency, 
-    addTransaction,
-    triggerNotification,
-    showToast
-  } = useBanking();
+  const { setActiveModal, subscriptions } = useBanking();
+  const [view, setView] = useState<View>({ name: 'list' });
+  const close = () => setActiveModal(null);
+  const back = () => setView({ name: 'list' });
 
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedPresetBrand, setSelectedPresetBrand] = useState<string>('spotify');
-  const [newName, setNewName] = useState('Spotify Premium');
-  const [newAmount, setNewAmount] = useState('3500');
-  const [payImmediately, setPayImmediately] = useState(true);
+  if (view.name === 'detail') {
+    const sub = subscriptions.find((s) => s.id === view.id);
+    if (sub) return <SubscriptionDetail sub={sub} onBack={back} onClose={close} />;
+  }
+  if (view.name === 'add') return <SubscriptionAdd onBack={back} onClose={close} />;
 
-  if (activeModal !== 'subscriptions') return null;
+  const active = subscriptions.filter((s) => s.status === 'active');
+  const monthly = active.reduce((sum, s) => sum + (s.billingCycle === 'yearly' ? Math.round(s.amount / 12) : s.amount), 0);
 
-  const totalMonthly = subscriptions
-    .filter((s) => s.status === 'active')
-    .reduce((sum, s) => sum + s.amount, 0);
+  return (
+    <Sheet title="Abonnements" onClose={close}>
+      <div className="space-y-5">
+        <div className="rounded-3xl bg-black text-white p-5">
+          <p className="text-[13px] text-neutral-400 font-medium">Chaque mois</p>
+          <p className="text-[30px] font-extrabold tracking-tight mt-0.5">{formatCurrency(monthly, 'XOF')}</p>
+          <p className="text-[13px] text-neutral-400 mt-0.5">
+            {active.length} abonnement{active.length > 1 ? 's' : ''} actif{active.length > 1 ? 's' : ''}
+          </p>
+        </div>
 
-  const popularServices = [
-    { name: 'Spotify Premium', brand: 'spotify', defaultAmount: '3500' },
-    { name: 'ChatGPT Plus', brand: 'chatgpt', defaultAmount: '13000' },
-    { name: 'Claude Pro', brand: 'claude', defaultAmount: '13000' },
-    { name: 'Google Gemini Pro', brand: 'gemini', defaultAmount: '13000' },
-    { name: 'Netflix Standard', brand: 'netflix', defaultAmount: '6500' },
-  ];
+        {subscriptions.length === 0 ? (
+          <EmptyState icon={<Repeat className="w-6 h-6" />} title="Aucun abonnement" />
+        ) : (
+          <List>
+            {subscriptions.map((s) => (
+              <Row
+                key={s.id}
+                onClick={() => setView({ name: 'detail', id: s.id })}
+                icon={<BrandLogo brand={s.name} size={44} className="rounded-2xl" />}
+                title={s.name}
+                subtitle={s.status === 'active' ? `Le ${s.nextBillingDate}` : 'En pause'}
+                trailing={
+                  <span className={`text-[15px] font-bold whitespace-nowrap shrink-0 ${s.status === 'paused' ? 'text-neutral-400 line-through' : ''}`}>
+                    {formatCurrency(s.amount, 'XOF')}
+                  </span>
+                }
+              />
+            ))}
+          </List>
+        )}
 
-  const handleSelectServicePreset = (svc: typeof popularServices[0]) => {
-    setSelectedPresetBrand(svc.brand);
-    setNewName(svc.name);
-    setNewAmount(currency === 'XOF' ? svc.defaultAmount : (parseFloat(svc.defaultAmount) / 655).toFixed(2));
-  };
+        <Button variant="secondary" className="w-full" icon={<Plus className="w-5 h-5" />} onClick={() => setView({ name: 'add' })}>
+          Ajouter un abonnement
+        </Button>
+      </div>
+    </Sheet>
+  );
+};
 
-  const handlePayNow = (sub: typeof subscriptions[0]) => {
-    const brandKey = sub.name.toLowerCase().includes('chatgpt')
-      ? 'chatgpt'
-      : sub.name.toLowerCase().includes('claude')
-      ? 'claude'
-      : sub.name.toLowerCase().includes('gemini')
-      ? 'gemini'
-      : sub.name.toLowerCase().includes('spotify')
-      ? 'spotify'
-      : sub.name.toLowerCase().includes('netflix')
-      ? 'netflix'
-      : sub.name.toLowerCase().includes('rapido')
-      ? 'rapido'
-      : sub.name.toLowerCase().includes('axa')
-      ? 'axa'
-      : undefined;
+const SubscriptionDetail: React.FC<{ sub: SubscriptionItem; onBack: () => void; onClose: () => void }> = ({ sub, onBack, onClose }) => {
+  const { toggleSubscription, removeSubscription, addTransaction, balance, showToast } = useBanking();
+  const paused = sub.status === 'paused';
 
+  const payNow = () => {
+    if (sub.amount > balance) return showToast('Solde insuffisant');
     addTransaction({
-      title: `${sub.name}`,
-      subtitle: `Règlement d'abonnement (${sub.provider})`,
-      category: 'Abonnements',
+      title: sub.name,
+      subtitle: 'Abonnement',
+      category: 'Services & Abonnements',
       type: 'subscription',
       amount: -sub.amount,
-      currency,
       status: 'completed',
-      icon: sub.iconName,
-      brandLogo: brandKey,
+      icon: 'Tv',
+      brandLogo: sub.name,
+      recipient: sub.provider || sub.name,
       fee: 0,
-      paymentMethod: 'Carte Payzed Black',
+      paymentMethod: 'Carte Payzed',
     });
-
-    triggerNotification({
-      title: `Abonnement réglé (-${sub.amount.toLocaleString()} ${currency})`,
-      message: `Votre abonnement ${sub.name} de ${sub.amount.toLocaleString()} ${currency} a été payé avec succès.`,
-      brandLogo: brandKey,
-      amount: -sub.amount,
-      type: 'out',
-    });
-
-    triggerSuccessConfetti();
-    showToast(`Abonnement ${sub.name} payé avec succès`);
-  };
-
-  const handleAddSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const amt = parseFloat(newAmount);
-    if (!newName || isNaN(amt) || amt <= 0) return;
-
-    addSubscription({
-      name: newName,
-      provider: newName,
-      amount: amt,
-      currency,
-      billingCycle: 'monthly',
-      nextBillingDate: '28 Nov 2026',
-      category: 'Abonnement',
-      status: 'active',
-      iconName: 'Tv',
-    });
-
-    if (payImmediately) {
-      addTransaction({
-        title: `${newName}`,
-        subtitle: `Prélèvement initial abonnement`,
-        category: 'Abonnements',
-        type: 'subscription',
-        amount: -amt,
-        currency,
-        status: 'completed',
-        icon: 'Tv',
-        brandLogo: selectedPresetBrand || undefined,
-        fee: 0,
-        paymentMethod: 'Carte Payzed Black',
-      });
-
-      triggerNotification({
-        title: `Paiement d'abonnement (-${amt.toLocaleString()} ${currency})`,
-        message: `Paiement de ${amt.toLocaleString()} ${currency} pour ${newName} confirmé par notification push.`,
-        brandLogo: selectedPresetBrand || undefined,
-        amount: -amt,
-        type: 'out',
-      });
-    }
-
-    triggerSuccessConfetti();
-    showToast(`Abonnement ${newName} ${payImmediately ? 'payé et ' : ''}enregistré`);
-    setShowAddForm(false);
-    setNewName('');
-    setNewAmount('');
+    showToast(`${sub.name} payé`);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
-      <div className="relative w-full max-w-[480px] rounded-t-[28px] bg-white text-black overflow-y-auto overscroll-contain flex flex-col max-h-[90%] animate-sheet-up app-safe-bottom">
-        
-        {/* En-tête Monochrome */}
-        <div className="flex items-center justify-between p-4 border-b border-neutral-100">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-xl bg-neutral-100 border border-neutral-200 flex items-center justify-center text-black">
-              <Repeat className="w-4 h-4 stroke-[2]" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-black">Abonnements & Services</h2>
-              <p className="text-[10px] text-neutral-500 font-medium">Prélèvements récurrents automatiques</p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setActiveModal(null)}
-            className="p-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-600 hover:text-black transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
+    <Sheet title={sub.name} onBack={onBack} onClose={onClose}>
+      <div className="space-y-6">
+        <div className="text-center pt-1">
+          <BrandLogo brand={sub.name} size={64} className="rounded-3xl mx-auto" />
+          <p className="mt-4 text-[32px] font-extrabold tracking-tight">{formatCurrency(sub.amount, 'XOF')}</p>
+          <p className="text-[15px] text-neutral-500">par {sub.billingCycle === 'yearly' ? 'an' : 'mois'}</p>
         </div>
 
-        {/* Barre de budget mensuel */}
-        <div className="p-4 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
-          <div>
-            <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block">
-              Budget Mensuel Actif
-            </span>
-            <span className="text-base sm:text-lg font-black font-sans text-black tracking-tight">
-              {formatCurrency(totalMonthly, currency)}
-              <span className="text-xs font-semibold text-neutral-400 font-sans ml-1">/ mois</span>
-            </span>
-          </div>
+        <List>
+          <Row title="Statut" trailing={<span className="text-[15px] font-semibold">{paused ? 'En pause' : 'Actif'}</span>} />
+          {!paused && <Row title="Prochain prélèvement" trailing={<span className="text-[15px] font-semibold">{sub.nextBillingDate}</span>} />}
+        </List>
 
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-black hover:bg-neutral-800 text-white text-xs font-bold transition-all shadow-xs active:scale-95"
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Ajouter</span>
-          </button>
-        </div>
-
-        {/* Liste des abonnements */}
-        <div className="p-4 overflow-y-auto space-y-2.5 flex-1">
-          {showAddForm && (
-            <form onSubmit={handleAddSubmit} className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-3 mb-3">
-              <div>
-                <h4 className="text-xs font-bold text-black mb-1.5">Payer un abonnement & Enregistrer</h4>
-                <p className="text-[10px] text-neutral-500 font-medium">Sélectionnez le service pour afficher son logo authentique :</p>
-                <div className="grid grid-cols-2 gap-1.5 mt-2">
-                  {popularServices.map((svc) => (
-                    <button
-                      key={svc.brand}
-                      type="button"
-                      onClick={() => handleSelectServicePreset(svc)}
-                      className={`p-2 rounded-xl border text-xs font-bold flex items-center space-x-2 transition-all text-left ${
-                        selectedPresetBrand === svc.brand
-                          ? 'bg-black text-white border-black shadow-xs'
-                          : 'bg-white hover:bg-neutral-100 border-neutral-200 text-neutral-800'
-                      }`}
-                    >
-                      <BrandLogo brand={svc.brand} size={22} className="rounded-lg shrink-0" />
-                      <span className="truncate text-[11px]">{svc.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
-                  Nom du service
-                </label>
-                <input
-                  type="text"
-                  placeholder="Nom du service (ex: Spotify, iCloud)"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-black text-xs focus:outline-none focus:border-black font-semibold"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block mb-1">
-                  Montant ({currency})
-                </label>
-                <input
-                  type="number"
-                  placeholder={`Montant (${currency})`}
-                  value={newAmount}
-                  onChange={(e) => setNewAmount(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-neutral-300 text-black font-mono text-xs focus:outline-none focus:border-black font-bold"
-                  required
-                />
-              </div>
-
-              <label className="flex items-center space-x-2 p-2 rounded-xl bg-white border border-neutral-200 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={payImmediately}
-                  onChange={(e) => setPayImmediately(e.target.checked)}
-                  className="rounded text-black focus:ring-black accent-black"
-                />
-                <span className="text-[11px] font-bold text-neutral-800">
-                  Débiter immédiatement & recevoir la notification push
-                </span>
-              </label>
-
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="flex-1 py-2 rounded-xl bg-neutral-200 text-neutral-800 text-xs font-bold hover:bg-neutral-300 transition-colors"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2 rounded-xl bg-black hover:bg-neutral-800 text-white font-bold text-xs shadow-xs transition-all active:scale-95"
-                >
-                  Valider & Payer
-                </button>
-              </div>
-            </form>
+        <div className="space-y-2">
+          {!paused && (
+            <Button className="w-full" onClick={payNow}>
+              Payer maintenant
+            </Button>
           )}
-
-          {subscriptions.map((sub) => {
-            const Icon = ICON_MAP[sub.iconName] || Tv;
-            const isActive = sub.status === 'active';
-            const brandKey = sub.name.toLowerCase().includes('chatgpt')
-              ? 'chatgpt'
-              : sub.name.toLowerCase().includes('claude')
-              ? 'claude'
-              : sub.name.toLowerCase().includes('gemini')
-              ? 'gemini'
-              : sub.name.toLowerCase().includes('spotify')
-              ? 'spotify'
-              : sub.name.toLowerCase().includes('netflix')
-              ? 'netflix'
-              : sub.name.toLowerCase().includes('rapido')
-              ? 'rapido'
-              : sub.name.toLowerCase().includes('axa')
-              ? 'axa'
-              : null;
-
-            return (
-              <div
-                key={sub.id}
-                className="p-3.5 rounded-2xl bg-white border border-neutral-200/90 hover:border-black/20 shadow-xs transition-all space-y-2.5"
-              >
-                {/* 1ère ligne : Logo, Nom du service & PRIX CLAIR (Sans encombrement) */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center space-x-2.5 min-w-0 flex-1">
-                    {brandKey ? (
-                      <BrandLogo brand={brandKey} size={36} className="rounded-xl shadow-xs shrink-0" />
-                    ) : (
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                        isActive ? 'bg-neutral-100 text-black border border-neutral-200' : 'bg-neutral-100 text-neutral-400'
-                      }`}>
-                        <Icon className="w-4 h-4 stroke-[2]" />
-                      </div>
-                    )}
-
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-xs sm:text-sm font-bold text-black truncate">{sub.name}</h4>
-                      <p className="text-[10px] sm:text-[11px] text-neutral-500 font-medium truncate mt-0.5">
-                        {sub.category}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <span className="text-sm font-black font-sans text-black tracking-tight block whitespace-nowrap">
-                      {formatCurrency(sub.amount, currency)}
-                    </span>
-                    <span className="text-[10px] text-neutral-400 font-medium block">
-                      par mois
-                    </span>
-                  </div>
-                </div>
-
-                {/* 2ème ligne : Échéance + Actions claires */}
-                <div className="flex items-center justify-between pt-2 border-t border-neutral-100 text-xs">
-                  <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    isActive ? 'bg-neutral-100 text-neutral-800' : 'bg-neutral-100 text-neutral-400'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-black' : 'bg-neutral-400'}`} />
-                    <span>{isActive ? `Prochain : ${sub.nextBillingDate}` : 'En pause'}</span>
-                  </span>
-
-                  <div className="flex items-center space-x-1.5">
-                    <button
-                      type="button"
-                      onClick={() => toggleSubscription(sub.id)}
-                      className="px-2.5 py-1 rounded-xl border border-neutral-200 hover:border-black text-neutral-700 hover:text-black text-[11px] font-semibold transition-all active:scale-95 bg-white"
-                    >
-                      {isActive ? 'Suspendre' : 'Reprendre'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handlePayNow(sub)}
-                      className="px-3 py-1 rounded-xl bg-black hover:bg-neutral-800 text-white text-[11px] font-bold shadow-xs transition-all active:scale-95"
-                    >
-                      Régler
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          <Button variant="secondary" className="w-full" onClick={() => toggleSubscription(sub.id)}>
+            {paused ? "Réactiver l'abonnement" : 'Mettre en pause'}
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full text-red-600"
+            onClick={() => {
+              removeSubscription(sub.id);
+              showToast('Abonnement supprimé');
+              onBack();
+            }}
+          >
+            Supprimer
+          </Button>
         </div>
-
       </div>
-    </div>
+    </Sheet>
+  );
+};
+
+const SubscriptionAdd: React.FC<{ onBack: () => void; onClose: () => void }> = ({ onBack, onClose }) => {
+  const { addSubscription, showToast } = useBanking();
+  const [service, setService] = useState<ServiceId>('spotify');
+  const [name, setName] = useState('Spotify');
+  const [amount, setAmount] = useState('3500');
+  const value = parseAmount(amount);
+  const ready = name.trim().length > 0 && value > 0;
+
+  const pick = (id: ServiceId) => {
+    const s = SERVICES.find((x) => x.id === id)!;
+    setService(id);
+    setName(id === 'autre' ? '' : s.label);
+    setAmount(s.amount ? String(s.amount) : '');
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ready) return;
+    addSubscription({
+      name: name.trim(),
+      provider: name.trim(),
+      amount: value,
+      currency: 'XOF',
+      billingCycle: 'monthly',
+      nextBillingDate: nextMonth(),
+      category: 'Abonnements',
+      status: 'active',
+      iconName: 'Tv',
+    });
+    showToast('Abonnement ajouté');
+    onBack();
+  };
+
+  return (
+    <Sheet title="Nouvel abonnement" onBack={onBack} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-5">
+        <ChoiceGrid
+          columns={3}
+          value={service}
+          onChange={pick}
+          options={SERVICES.map((s) => ({
+            id: s.id,
+            label: s.label,
+            icon:
+              s.id === 'autre' ? (
+                <span className="w-8 h-8 rounded-lg bg-neutral-200 flex items-center justify-center">
+                  <Plus className="w-4 h-4" />
+                </span>
+              ) : (
+                <BrandLogo brand={s.id} size={32} className="rounded-lg" />
+              ),
+          }))}
+        />
+        <Field label="Nom" placeholder="Ex : Canal+, salle de sport" value={name} onChange={(e) => setName(e.target.value)} />
+        <AmountField label="Montant par mois" value={amount} onChange={setAmount} />
+        <Button type="submit" className="w-full" disabled={!ready}>
+          Ajouter
+        </Button>
+      </form>
+    </Sheet>
   );
 };

@@ -16,10 +16,25 @@
     --border-subtle: rgba(0, 0, 0, 0.05);
   }
 
+  :root {
+    color-scheme: light only; /* jamais de champs sombres si le téléphone est en mode sombre */
+  }
+
   html,
   body,
   #root {
     height: 100%;
+  }
+
+  input,
+  textarea {
+    color: #000;
+    caret-color: #000;
+    -webkit-text-fill-color: #000;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    -webkit-text-fill-color: #a3a3a3;
   }
 
   html,
@@ -57,6 +72,7 @@
 .app-shell {
   position: fixed;
   inset: 0;
+  bottom: var(--kb, 0px); /* remonte au-dessus du clavier */
   display: flex;
   flex-direction: column;
   background: #FFFFFF;
@@ -82,6 +98,20 @@
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   touch-action: pan-y;
+}
+
+/* Pendant la saisie : on cache la barre du bas pour laisser la place au champ */
+.kb-open .app-nav {
+  display: none;
+}
+
+/* Fenêtres (sheets) : toujours au-dessus du clavier */
+.kb-aware {
+  bottom: var(--kb, 0px) !important;
+}
+.kb-open .kb-aware [role='dialog'] {
+  max-height: 100%;
+  border-radius: 20px 20px 0 0;
 }
 
 /* Zones sûres (encoche, barre de navigation Android) */
@@ -250,4 +280,21 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade {
+  animation: fade 0.2s ease-out both;
+}
+
+@keyframes pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  70% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.animate-pop {
+  animation: pop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

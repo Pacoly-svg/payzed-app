@@ -106,30 +106,16 @@ export function convertCurrency(
 export function formatTransactionDate(timestamp: number): string {
   const date = new Date(timestamp);
   const now = new Date();
-  
-  const isToday = 
-    date.getDate() === now.getDate() &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
+  const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((dayStart(now) - dayStart(date)) / 86_400_000);
+  const time = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
 
-  const isYesterday = 
-    date.getDate() === now.getDate() - 1 &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
+  if (diffDays === 0) return `Aujourd'hui, ${time}`;
+  if (diffDays === 1) return `Hier, ${time}`;
 
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const timeStr = `${hours}:${minutes}`;
-
-  if (isToday) {
-    return `Aujourd'hui, ${timeStr}`;
-  }
-  if (isYesterday) {
-    return `Hier, ${timeStr}`;
-  }
-
-  const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}, ${timeStr}`;
+  const months = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  const year = date.getFullYear() !== now.getFullYear() ? ` ${date.getFullYear()}` : '';
+  return `${date.getDate()} ${months[date.getMonth()]}${year}, ${time}`;
 }
 
 export function maskCardNumber(fullNumber: string, showFull = false): string {

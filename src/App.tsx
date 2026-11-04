@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState } from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BankingProvider, useBanking } from './context/BankingContext';
 import { MobileFrame } from './components/common/MobileFrame';
 import { Header } from './components/common/Header';
@@ -6,8 +6,6 @@ import { BottomNav } from './components/common/BottomNav';
 import { Toast } from './components/common/Toast';
 import { ComptesScreen } from './components/comptes/ComptesScreen';
 import { AppPinLock } from './components/security/AppPinLock';
-import { InAppNotificationBanner } from './components/common/InAppNotificationBanner';
-import { SplashScreen } from './components/common/SplashScreen';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // Écrans et fenêtres chargés à la demande : démarrage plus rapide.
@@ -20,7 +18,6 @@ const SubscriptionsModal = lazy(() => import('./components/modals/SubscriptionsM
 const BillsModal = lazy(() => import('./components/modals/BillsModal').then((m) => ({ default: m.BillsModal })));
 const TopUpModal = lazy(() => import('./components/modals/TopUpModal').then((m) => ({ default: m.TopUpModal })));
 const TransactionDetailsModal = lazy(() => import('./components/modals/TransactionDetailsModal').then((m) => ({ default: m.TransactionDetailsModal })));
-const NewCardModal = lazy(() => import('./components/modals/NewCardModal').then((m) => ({ default: m.NewCardModal })));
 const VaultsModal = lazy(() => import('./components/modals/VaultsModal').then((m) => ({ default: m.VaultsModal })));
 
 const MODALS = {
@@ -29,7 +26,6 @@ const MODALS = {
   subscriptions: SubscriptionsModal,
   bills: BillsModal,
   topup: TopUpModal,
-  newCard: NewCardModal,
   vaults: VaultsModal,
 } as const;
 
@@ -47,7 +43,6 @@ const Screen: React.FC = () => {
 
 const PayzedApp: React.FC = () => {
   const { isLocked, activeTab, activeModal, selectedTransaction } = useBanking();
-  const [showSplash, setShowSplash] = useState(true);
   const ActiveModal = activeModal ? MODALS[activeModal] : null;
 
   return (
@@ -67,10 +62,8 @@ const PayzedApp: React.FC = () => {
         </Suspense>
       </ErrorBoundary>
 
-      <InAppNotificationBanner />
       {isLocked && <AppPinLock />}
       <Toast />
-      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
     </>
   );
 };
