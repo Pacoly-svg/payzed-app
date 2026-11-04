@@ -106,6 +106,25 @@ export const AmountField: React.FC<{
   </label>
 );
 
+/** Récapitulatif des frais (1 %) sous un montant. */
+export const FeeSummary: React.FC<{ amount: number; fee: number; balance: number }> = ({ amount, fee, balance }) => {
+  const total = amount + fee;
+  const over = total > balance;
+  return (
+    <div className="rounded-2xl bg-neutral-100 px-4 py-3 space-y-1.5 text-[15px]">
+      <div className="flex justify-between text-neutral-500">
+        <span>Frais (1 %)</span>
+        <span className="font-semibold text-black tabular-nums">{groupDigits(String(fee))} FCFA</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="font-semibold">Total débité</span>
+        <span className={cx('font-bold tabular-nums', over && 'text-red-600')}>{groupDigits(String(total))} FCFA</span>
+      </div>
+      {over && <p className="text-[13px] text-red-600">Solde insuffisant (frais compris)</p>}
+    </div>
+  );
+};
+
 /* ---------- Surfaces & listes ---------- */
 
 export const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (

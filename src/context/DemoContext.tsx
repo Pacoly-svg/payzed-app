@@ -3,6 +3,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { useBanking } from './BankingContext';
 import { formatCurrency } from '../utils/formatters';
 import type { Transaction } from '../types/banking';
+import { feeFor } from '../utils/fees';
 
 /*
  * Mode démo (présentations) : simuler des entrées / sorties d'argent avec
@@ -20,13 +21,33 @@ export const DEMO_PLATFORMS = [
 ] as const;
 export type DemoPlatform = (typeof DEMO_PLATFORMS)[number]['id'];
 
+export interface CustomPlatform {
+  id: string;
+  name: string;
+  /** Logo en data URL (image choisie dans la galerie). */
+  logo: string;
+}
+
+const CUSTOM_KEY = 'payzed_custom_platforms';
+const loadCustom = (): CustomPlatform[] => {
+  try {
+    const v = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
 export interface SimulationConfig {
   direction: 'in' | 'out';
-  platform: DemoPlatform;
+  /** Canal officiel (wave, orange…) ou id d'un canal personnalisé. */
+  platform: string;
   name: string;
   phone?: string;
   amount: number;
   delaySeconds: number;
+  /** Date de l'opération (par défaut : maintenant). */
+  timestamp?: number;
 }
 
 export interface AppNotification {
@@ -43,6 +64,11 @@ interface DemoContextType {
   pending: { endsAt: number; label: string } | null;
   simulate: (cfg: SimulationConfig) => void;
   cancelSimulation: () => void;
+  customPlatforms: CustomPlatform[];
+  addCustomPlatform: (name: string, logo: string) => string;
+  removeCustomPlatform: (id: string) => void;
+  platformLabel: (id: string) => string;
+  platformLogo: (id: string) => string;
 }
 
 const DemoContext = createContext<DemoContextType | undefined>(undefined);
@@ -87,6 +113,35 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [pending, setPending] = useState<{ endsAt: number; label: string } | null>(null);
   const simTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [customPlatforms, setCustomPlatforms] = useState<CustomPlatform[]>(loadCustom);
+  useEffect(() => {
+    try {
+      localStorage.setItem(CUSTOM_KEY, JSON.stringify(customPlatforms));
+    } catch {
+      // stockage plein : on garde en mémoire
+    }
+  }, [customPlatforms]);
+  const customRef = useRef(customPlatforms);
+  useEffect(() => {
+    customRef.current = customPlatforms;
+  }, [customPlatforms]);
+
+  const platformLabel = useCallback(
+    (id: string) => DEMO_PLATFORMS.find((p) => p.id === id)?.label ?? customRef.current.find((p) => p.id === id)?.name ?? 'Payzed',
+    [],
+  );
+  const platformLogo = useCallback((id: string) => customRef.current.find((p) => p.id === id)?.logo ?? id, []);
+
+  const addCustomPlatform = useCallback((name: string, logo: string) => {
+    const id = `custom_${Date.now()}`;
+    setCustomPlatforms((prev) => [...prev, { id, name: name.trim(), logo }]);
+    customRef.current = [...customRef.current, { id, name: name.trim(), logo }];
+    return id;
+  }, []);
+  const removeCustomPlatform = useCallback((id: string) => {
+    setCustomPlatforms((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
   const balanceRef = useRef(balance);
   useEffect(() => {
     balanceRef.current = balance;
@@ -106,11 +161,13 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
     (cfg: SimulationConfig) => {
       setPending(null);
       const isIn = cfg.direction === 'in';
-      if (!isIn && cfg.amount > balanceRef.current) {
-        showToast('Simulation annulée : solde insuffisant');
+      const fee = isIn ? 0 : feeFor(cfg.amount);
+      if (!isIn && cfg.amount + fee > balanceRef.current) {
+        showToast('SIM annulée : solde insuffisant (frais compris)');
         return;
       }
-      const label = DEMO_PLATFORMS.find((p) => p.id === cfg.platform)?.label ?? 'Payzed';
+      const label = platformLabel(cfg.platform);
+      const logo = platformLogo(cfg.platform);
       const who = cfg.name.trim();
       const contact = cfg.phone?.trim() ? `${who} · ${cfg.phone.trim()}` : who;
       const tx = addTransaction({
@@ -121,18 +178,24 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         amount: isIn ? cfg.amount : -cfg.amount,
         status: 'completed',
         icon: isIn ? 'ArrowDownLeft' : 'ArrowUpRight',
-        brandLogo: cfg.platform,
+        brandLogo: logo,
         sender: isIn ? contact : undefined,
         recipient: isIn ? undefined : contact,
         recipientPhone: isIn ? undefined : cfg.phone?.trim() || undefined,
-        fee: 0,
+        fee,
         paymentMethod: label,
         isSimulated: true,
+        timestamp: cfg.timestamp,
       });
+      // Opération datée dans le passé : ajoutée à l'historique, sans notification
+      if (cfg.timestamp && Date.now() - cfg.timestamp > 60_000) {
+        showToast("Opération ajoutée à l'historique");
+        return;
+      }
       const amountText = formatCurrency(cfg.amount, 'XOF');
       setNotification({
         id: tx.id,
-        brand: cfg.platform,
+        brand: logo,
         tx,
         title: isIn ? `+${amountText} reçus` : `-${amountText} envoyés`,
         message: isIn ? `${who} vous a envoyé ${amountText} via ${label}.` : `Paiement de ${amountText} à ${who} via ${label}.`,
@@ -146,7 +209,7 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (notifTimer.current) clearTimeout(notifTimer.current);
       notifTimer.current = setTimeout(() => setNotification(null), 6000);
     },
-    [addTransaction, showToast],
+    [addTransaction, showToast, platformLabel, platformLogo],
   );
 
   const simulate = useCallback(
@@ -172,7 +235,20 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <DemoContext.Provider value={{ notification, dismissNotification, pending, simulate, cancelSimulation }}>
+    <DemoContext.Provider
+      value={{
+        notification,
+        dismissNotification,
+        pending,
+        simulate,
+        cancelSimulation,
+        customPlatforms,
+        addCustomPlatform,
+        removeCustomPlatform,
+        platformLabel,
+        platformLogo,
+      }}
+    >
       {children}
     </DemoContext.Provider>
   );

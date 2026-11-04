@@ -24,6 +24,8 @@ const GROUPS: { id: string; label: string; icon: React.ElementType; match: (t: T
 const OTHER = { id: 'other', label: 'Autres', icon: Wallet };
 
 const isSavingsMove = (t: Transaction) => t.title.startsWith('Coffre ');
+/** Coût réel d'une dépense : montant + frais. */
+const cost = (t: Transaction) => Math.abs(t.amount) + (t.fee || 0);
 
 interface Bucket {
   label: string;
@@ -69,18 +71,18 @@ export const StatsScreen: React.FC = () => {
     const inRange = transactions.filter((t) => t.timestamp >= from && !isSavingsMove(t));
     const expenses = inRange.filter((t) => t.amount < 0);
     const income = inRange.filter((t) => t.amount > 0).reduce((s, t) => s + t.amount, 0);
-    const spent = expenses.reduce((s, t) => s + Math.abs(t.amount), 0);
+    const spent = expenses.reduce((s, t) => s + cost(t), 0);
 
     for (const t of expenses) {
       const b = buckets.find((x) => t.timestamp >= x.start && t.timestamp < x.end);
-      if (b) b.total += Math.abs(t.amount);
+      if (b) b.total += cost(t);
     }
 
     const groups = new Map<string, { label: string; icon: React.ElementType; total: number }>();
     for (const t of expenses) {
       const g = GROUPS.find((x) => x.match(t)) ?? OTHER;
       const cur = groups.get(g.id) ?? { label: g.label, icon: g.icon, total: 0 };
-      cur.total += Math.abs(t.amount);
+      cur.total += cost(t);
       groups.set(g.id, cur);
     }
     const categories = [...groups.values()].sort((a, b) => b.total - a.total);

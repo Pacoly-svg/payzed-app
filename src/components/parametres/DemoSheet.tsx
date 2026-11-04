@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { Timer } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ImagePlus, Plus, Timer } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
-import { DEMO_PLATFORMS, useDemo, type DemoPlatform } from '../../context/DemoContext';
+import { DEMO_PLATFORMS, useDemo } from '../../context/DemoContext';
 import { formatCurrency } from '../../utils/formatters';
+import { feeFor } from '../../utils/fees';
+import { resizeImage } from '../../utils/image';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
-import { AmountField, Button, ChoiceGrid, Field, SectionTitle, Segmented, parseAmount } from '../ui';
+import { AmountField, Button, ChoiceGrid, FeeSummary, Field, SectionTitle, Segmented, TextLink, parseAmount } from '../ui';
 
 const DELAYS = [
   { id: '0', label: 'Direct' },
@@ -14,6 +16,13 @@ const DELAYS = [
   { id: '60', label: '1 min' },
 ] as const;
 type Delay = (typeof DELAYS)[number]['id'];
+
+/** Valeur pour <input type="datetime-local"> à l'heure locale. */
+const toLocalInput = (ts: number) => {
+  const d = new Date(ts);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+};
 
 const Countdown: React.FC<{ endsAt: number }> = ({ endsAt }) => {
   const [now, setNow] = useState(() => Date.now());
@@ -24,32 +33,108 @@ const Countdown: React.FC<{ endsAt: number }> = ({ endsAt }) => {
   return <>{Math.max(0, Math.ceil((endsAt - now) / 1000))} s</>;
 };
 
+/* ---------- Ajout d'un canal personnalisé ---------- */
+
+const NewChannel: React.FC<{ onBack: () => void; onClose: () => void; onCreated: (id: string) => void }> = ({ onBack, onClose, onCreated }) => {
+  const { addCustomPlatform } = useDemo();
+  const { showToast } = useBanking();
+  const [name, setName] = useState('');
+  const [logo, setLogo] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setLogo(await resizeImage(file, 160, 'image/png'));
+    } catch {
+      showToast("Impossible de lire l'image");
+    }
+  };
+
+  return (
+    <Sheet title="Nouveau canal" onBack={onBack} onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!name.trim() || !logo) return;
+          onCreated(addCustomPlatform(name, logo));
+        }}
+        className="space-y-5"
+      >
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="mx-auto w-24 h-24 rounded-3xl bg-neutral-100 flex flex-col items-center justify-center gap-1 overflow-hidden active:scale-95 transition-transform"
+        >
+          {logo ? (
+            <img src={logo} alt="" className="w-full h-full object-contain p-2" />
+          ) : (
+            <>
+              <ImagePlus className="w-7 h-7" />
+              <span className="text-[12px] font-semibold text-neutral-500">Logo</span>
+            </>
+          )}
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pick} />
+        <Field label="Nom du canal" placeholder="Ex : Free Money, BICIS, UBA" value={name} onChange={(e) => setName(e.target.value)} maxLength={24} />
+        <Button type="submit" className="w-full" disabled={!name.trim() || !logo}>
+          Ajouter le canal
+        </Button>
+      </form>
+    </Sheet>
+  );
+};
+
+/* ---------- SIM ---------- */
+
 export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { balance, setBalanceTo, showToast } = useBanking();
-  const { simulate, pending, cancelSimulation } = useDemo();
+  const { simulate, pending, cancelSimulation, customPlatforms, removeCustomPlatform } = useDemo();
 
+  const [view, setView] = useState<'main' | 'channel'>('main');
   const [direction, setDirection] = useState<'in' | 'out'>('in');
-  const [platform, setPlatform] = useState<DemoPlatform>('wave');
+  const [platform, setPlatform] = useState<string>('wave');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
+  const [when, setWhen] = useState<'now' | 'date'>('now');
+  const [date, setDate] = useState(() => toLocalInput(Date.now() - 86_400_000));
   const [delay, setDelay] = useState<Delay>('0');
   const [newBalance, setNewBalance] = useState(String(balance));
+
   // Le champ suit le solde réel (après une simulation, par exemple)
   useEffect(() => {
     setNewBalance(String(balance));
   }, [balance]);
 
+  if (view === 'channel') {
+    return (
+      <NewChannel
+        onBack={() => setView('main')}
+        onClose={onClose}
+        onCreated={(id) => {
+          setPlatform(id);
+          setView('main');
+        }}
+      />
+    );
+  }
+
   const value = parseAmount(amount);
-  const ready = name.trim().length > 0 && value > 0;
+  const fee = direction === 'out' ? feeFor(value) : 0;
+  const dateTs = when === 'date' ? new Date(date).getTime() : undefined;
+  const dateValid = when === 'now' || (Number.isFinite(dateTs) && (dateTs as number) <= Date.now());
+  const ready = name.trim().length > 0 && value > 0 && dateValid && (direction === 'in' || value + fee <= balance);
   const balanceValue = parseAmount(newBalance);
+  const isCustom = platform.startsWith('custom_');
 
   const launch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!ready) return;
-    if (direction === 'out' && value > balance) return showToast('Solde insuffisant pour cette sortie');
-    const delaySeconds = Number(delay);
-    simulate({ direction, platform, name, phone, amount: value, delaySeconds });
+    const delaySeconds = when === 'now' ? Number(delay) : 0;
+    simulate({ direction, platform, name, phone, amount: value, delaySeconds, timestamp: dateTs });
     setAmount('');
     if (delaySeconds > 0) {
       showToast(`Notification dans ${DELAYS.find((d) => d.id === delay)!.label}`);
@@ -57,8 +142,13 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     }
   };
 
+  const options = [
+    ...DEMO_PLATFORMS.map((p) => ({ id: p.id as string, label: p.label, icon: <BrandLogo brand={p.id} size={32} className="rounded-lg" /> })),
+    ...customPlatforms.map((p) => ({ id: p.id, label: p.name, icon: <BrandLogo brand={p.logo} size={32} className="rounded-lg" /> })),
+  ];
+
   return (
-    <Sheet title="Simulations" onClose={onClose}>
+    <Sheet title="SIM" onClose={onClose}>
       <div className="space-y-8">
         {pending && (
           <div className="flex items-center gap-3 rounded-3xl bg-black text-white p-4">
@@ -85,12 +175,27 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               { id: 'out', label: "Sortie d'argent" },
             ]}
           />
-          <ChoiceGrid
-            columns={3}
-            value={platform}
-            onChange={setPlatform}
-            options={DEMO_PLATFORMS.map((p) => ({ id: p.id, label: p.label, icon: <BrandLogo brand={p.id} size={32} className="rounded-lg" /> }))}
-          />
+
+          <div className="space-y-2">
+            <ChoiceGrid columns={3} value={platform} onChange={setPlatform} options={options} />
+            <div className="flex items-center justify-between">
+              <TextLink className="flex items-center gap-1.5" onClick={() => setView('channel')}>
+                <Plus className="w-4 h-4" /> Ajouter un canal
+              </TextLink>
+              {isCustom && (
+                <TextLink
+                  className="text-red-600"
+                  onClick={() => {
+                    removeCustomPlatform(platform);
+                    setPlatform('wave');
+                  }}
+                >
+                  Supprimer ce canal
+                </TextLink>
+              )}
+            </div>
+          </div>
+
           <Field
             label={direction === 'in' ? 'Expéditeur' : 'Bénéficiaire'}
             placeholder="Nom et prénom"
@@ -108,10 +213,34 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             autoComplete="off"
           />
           <AmountField value={amount} onChange={setAmount} />
-          <div>
-            <p className="text-[13px] font-semibold text-neutral-500 mb-1.5 px-1">Arrivée de la notification</p>
-            <Segmented value={delay} onChange={setDelay} options={DELAYS.map((d) => ({ id: d.id, label: d.label }))} />
+          {direction === 'out' && value > 0 && <FeeSummary amount={value} fee={fee} balance={balance} />}
+
+          <div className="space-y-3">
+            <p className="text-[13px] font-semibold text-neutral-500 px-1">Date de l'opération</p>
+            <Segmented
+              value={when}
+              onChange={setWhen}
+              options={[
+                { id: 'now', label: 'Maintenant' },
+                { id: 'date', label: 'Autre date' },
+              ]}
+            />
+            {when === 'date' ? (
+              <Field
+                type="datetime-local"
+                value={date}
+                max={toLocalInput(Date.now())}
+                onChange={(e) => setDate(e.target.value)}
+                hint={dateValid ? "Ajoutée directement à l'historique, sans notification." : 'Choisissez une date passée.'}
+              />
+            ) : (
+              <div>
+                <p className="text-[13px] font-semibold text-neutral-500 mb-1.5 px-1">Arrivée de la notification</p>
+                <Segmented value={delay} onChange={setDelay} options={DELAYS.map((d) => ({ id: d.id, label: d.label }))} />
+              </div>
+            )}
           </div>
+
           <Button type="submit" className="w-full" disabled={!ready}>
             {direction === 'in' ? "Simuler l'entrée" : 'Simuler la sortie'}
           </Button>

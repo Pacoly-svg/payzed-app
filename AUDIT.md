@@ -1,5 +1,16 @@
 # Audit Payzed
 
+## Version 1.4.0
+
+| Demande | Réalisation |
+|---|---|
+| Frais de 1 % | Appliqués aux envois, paiements QR, factures, crédit, paiement d'abonnement et sorties SIM. Affichés avant validation (frais + total débité), dans le détail et sur le reçu ; le solde débite montant + frais. Les Stats comptent les frais. |
+| Menu « SIM » | Renommé. Retour du choix de la **date** de l'opération (passée), des **canaux personnalisés** (nom + logo depuis la galerie) et du **reçu**. |
+| Reçu | « Voir le reçu » dans le détail de chaque opération : image PNG (logo, montant, statut, date, parties, moyen, frais, total, référence, QR de référence), partage natif Android (WhatsApp, galerie, e-mail…). |
+| Carte | Refonte : carte qui se retourne pour afficher numéro / expiration / CVV (masqués automatiquement après 30 s), 4 actions (Infos, Bloquer, Plafond, Remplacer), dépenses du mois vs plafond, derniers paiements par carte, réglages (en ligne, sans contact, distributeur, étranger), remplacement en cas de perte ou vol (nouveau numéro Visa valide). |
+| Formulaires | Le bouton de validation reste fixé en bas des fenêtres Envoyer, Crédit et Factures. |
+
+
 ## Version 1.3.0
 
 | Demande | Réalisation |

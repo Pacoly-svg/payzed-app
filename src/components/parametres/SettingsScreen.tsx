@@ -3,34 +3,11 @@ import { Camera, ChevronRight, Fingerprint, KeyRound, Lock, Presentation, Rotate
 import { useBanking } from '../../context/BankingContext';
 import { Sheet } from '../common/Sheet';
 import { DemoSheet } from './DemoSheet';
+import { resizeImage } from '../../utils/image';
 import { Button, Field, IconBox, List, PageTitle, Row, SectionTitle, Toggle } from '../ui';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).map((n) => n[0] ?? '').join('').slice(0, 2).toUpperCase() || 'PZ';
-
-/** Redimensionne la photo pour ne pas saturer le stockage du téléphone. */
-function resizeImage(file: File, max = 256): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('read'));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('img'));
-      img.onload = () => {
-        const scale = Math.min(1, max / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('ctx'));
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
-}
 
 export const SettingsScreen: React.FC = () => {
   const { user, updateUser, lockApp, isBiometricsEnabled, toggleBiometrics, resetToDemoDefaults, showToast } = useBanking();
@@ -141,8 +118,8 @@ export const SettingsScreen: React.FC = () => {
           <Row
             onClick={() => setSheet('demo')}
             icon={<IconBox><Presentation className="w-5 h-5" /></IconBox>}
-            title="Simulations"
-            subtitle="Entrées, sorties et solde"
+            title="SIM"
+            subtitle="Simulations : entrées, sorties, solde"
             trailing={<ChevronRight className="w-5 h-5 text-neutral-400" />}
           />
           <Row

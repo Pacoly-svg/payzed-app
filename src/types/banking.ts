@@ -83,6 +83,7 @@ export interface VirtualCardData {
   onlinePaymentsEnabled: boolean;
   contactlessEnabled: boolean;
   atmWithdrawalsEnabled: boolean;
+  internationalEnabled?: boolean;
   spendingLimit: number;
   currentMonthSpent: number;
   cardBrand: 'visa' | 'mastercard';

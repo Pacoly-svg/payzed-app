@@ -1,18 +1,67 @@
-import React, { useState } from 'react';
-import { Archive, ArchiveRestore, Check, Copy, CreditCard } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Archive, ArchiveRestore, Check, Copy, CreditCard, FileText, Share2 } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { formatCurrency, formatTransactionDate } from '../../utils/formatters';
+import { renderReceipt } from '../../utils/receipt';
+import { shareImage } from '../../utils/share';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
 import { ICONS } from '../comptes/RecentTransactions';
 import { Button, List, Row } from '../ui';
+import type { Transaction } from '../../types/banking';
+
+const ReceiptView: React.FC<{ tx: Transaction; onBack: () => void; onClose: () => void }> = ({ tx, onBack, onClose }) => {
+  const { user, showToast } = useBanking();
+  const [src, setSrc] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    renderReceipt(tx, user.name)
+      .then((url) => alive && setSrc(url))
+      .catch(() => alive && showToast('Impossible de générer le reçu'));
+    return () => {
+      alive = false;
+    };
+  }, [tx, user.name, showToast]);
+
+  const share = async () => {
+    if (!src) return;
+    setBusy(true);
+    const res = await shareImage(src, `Recu-Payzed-${tx.reference}.png`, 'Reçu Payzed');
+    setBusy(false);
+    if (res === 'downloaded') showToast('Reçu téléchargé');
+  };
+
+  return (
+    <Sheet
+      title="Reçu"
+      onBack={onBack}
+      onClose={onClose}
+      footer={
+        <Button className="w-full" icon={<Share2 className="w-5 h-5" />} onClick={share} disabled={!src || busy}>
+          Partager le reçu
+        </Button>
+      }
+    >
+      {src ? (
+        <img src={src} alt={`Reçu ${tx.reference}`} className="w-full rounded-3xl border border-neutral-100" />
+      ) : (
+        <div className="aspect-[3/4] rounded-3xl bg-neutral-100 animate-pulse" />
+      )}
+    </Sheet>
+  );
+};
 
 export const TransactionDetailsModal: React.FC = () => {
   const { selectedTransaction: tx, setSelectedTransaction, toggleArchiveTransaction, showToast } = useBanking();
   const [copied, setCopied] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
   if (!tx) return null;
 
   const close = () => setSelectedTransaction(null);
+  if (showReceipt) return <ReceiptView tx={tx} onBack={() => setShowReceipt(false)} onClose={close} />;
+
   const Icon = ICONS[tx.icon] ?? CreditCard;
 
   const copyRef = async () => {
@@ -30,6 +79,7 @@ export const TransactionDetailsModal: React.FC = () => {
     [tx.amount > 0 ? 'De' : 'À', tx.amount > 0 ? tx.sender : tx.recipient],
     ['Moyen', tx.paymentMethod],
     ['Frais', tx.fee ? formatCurrency(tx.fee, tx.currency) : 'Gratuit'],
+    ...(tx.amount < 0 && tx.fee ? ([['Total débité', formatCurrency(Math.abs(tx.amount) + tx.fee, tx.currency)]] as [string, string][]) : []),
     ...(tx.isSimulated ? ([['Type', 'Opération simulée']] as [string, string][]) : []),
   ];
 
@@ -54,7 +104,11 @@ export const TransactionDetailsModal: React.FC = () => {
         {rows
           .filter(([, v]) => Boolean(v))
           .map(([k, v]) => (
-            <Row key={k} title={<span className="text-neutral-500 font-medium">{k}</span>} trailing={<span className="text-[15px] font-semibold text-right max-w-[60%] break-words">{v}</span>} />
+            <Row
+              key={k}
+              title={<span className="text-neutral-500 font-medium">{k}</span>}
+              trailing={<span className="text-[15px] font-semibold text-right max-w-[60%] break-words">{v}</span>}
+            />
           ))}
         <Row
           onClick={copyRef}
@@ -68,18 +122,23 @@ export const TransactionDetailsModal: React.FC = () => {
         />
       </List>
 
-      <Button
-        variant="secondary"
-        className="w-full mt-5"
-        icon={tx.isArchived ? <ArchiveRestore className="w-5 h-5" /> : <Archive className="w-5 h-5" />}
-        onClick={() => {
-          toggleArchiveTransaction(tx.id);
-          showToast(tx.isArchived ? "Remise dans l'historique" : "Masquée de l'historique");
-          close();
-        }}
-      >
-        {tx.isArchived ? "Remettre dans l'historique" : "Masquer de l'historique"}
-      </Button>
+      <div className="space-y-2 mt-5">
+        <Button className="w-full" icon={<FileText className="w-5 h-5" />} onClick={() => setShowReceipt(true)}>
+          Voir le reçu
+        </Button>
+        <Button
+          variant="secondary"
+          className="w-full"
+          icon={tx.isArchived ? <ArchiveRestore className="w-5 h-5" /> : <Archive className="w-5 h-5" />}
+          onClick={() => {
+            toggleArchiveTransaction(tx.id);
+            showToast(tx.isArchived ? "Remise dans l'historique" : "Masquée de l'historique");
+            close();
+          }}
+        >
+          {tx.isArchived ? "Remettre dans l'historique" : "Masquer de l'historique"}
+        </Button>
+      </div>
     </Sheet>
   );
 };

@@ -5,7 +5,8 @@ import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
-import { AmountField, Button, ChoiceGrid, Field, SuccessView, parseAmount } from '../ui';
+import { AmountField, Button, ChoiceGrid, FeeSummary, Field, SuccessView, parseAmount } from '../ui';
+import { feeFor } from '../../utils/fees';
 
 const RAILS = [
   { id: 'payzed', label: 'Payzed' },
@@ -40,13 +41,14 @@ export const TransferModal: React.FC = () => {
   const close = () => setActiveModal(null);
   const railLabel = RAILS.find((r) => r.id === rail)!.label;
   const value = parseAmount(amount);
-  const ready = name.trim().length > 0 && value > 0;
+  const fee = feeFor(value);
+  const ready = name.trim().length > 0 && value > 0 && value + fee <= balance;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return showToast('Indiquez le bénéficiaire');
     if (!(value > 0)) return showToast('Entrez un montant');
-    if (value > balance) return showToast('Solde insuffisant');
+    if (value + fee > balance) return showToast('Solde insuffisant (frais compris)');
     addTransaction({
       title: name.trim(),
       subtitle: `Envoi via ${railLabel}`,
@@ -58,7 +60,7 @@ export const TransferModal: React.FC = () => {
       brandLogo: rail === 'payzed' ? undefined : rail,
       recipient: phone.trim() ? `${name.trim()} · ${phone.trim()}` : name.trim(),
       recipientPhone: phone.trim() || undefined,
-      fee: 0,
+      fee,
       paymentMethod: railLabel,
     });
     triggerSuccessConfetti();
@@ -68,14 +70,14 @@ export const TransferModal: React.FC = () => {
   if (done !== null) {
     return (
       <Sheet title="Argent envoyé" onClose={close}>
-        <SuccessView amount={formatCurrency(done, currency)} text={`à ${name.trim()} via ${railLabel}`} onDone={close} />
+        <SuccessView amount={formatCurrency(done, currency)} text={`à ${name.trim()} via ${railLabel} · frais ${formatCurrency(feeFor(done), currency)}`} onDone={close} />
       </Sheet>
     );
   }
 
   return (
-    <Sheet title="Envoyer de l'argent" onClose={close}>
-      <form onSubmit={submit} className="space-y-5">
+    <Sheet title="Envoyer de l'argent" onClose={close} footer={<Button type="submit" form="transfer-form" className="w-full" disabled={!ready}>{value > 0 ? `Envoyer ${formatCurrency(value, currency)}` : 'Envoyer'}</Button>}>
+      <form id="transfer-form" onSubmit={submit} className="space-y-5">
         <Button variant="secondary" className="w-full" icon={<ScanLine className="w-5 h-5" />} onClick={() => setActiveModal('scan')}>
           Scanner un QR code
         </Button>
@@ -131,10 +133,7 @@ export const TransferModal: React.FC = () => {
           autoComplete="off"
         />
         <AmountField value={amount} onChange={setAmount} hint={`Disponible : ${formatCurrency(balance, currency)}`} />
-
-        <Button type="submit" className="w-full" disabled={!ready}>
-          {value > 0 ? `Envoyer ${formatCurrency(value, currency)}` : 'Envoyer'}
-        </Button>
+        {value > 0 && <FeeSummary amount={value} fee={fee} balance={balance} />}
       </form>
     </Sheet>
   );

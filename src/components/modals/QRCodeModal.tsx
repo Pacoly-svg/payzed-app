@@ -5,7 +5,9 @@ import { useBanking } from '../../context/BankingContext';
 import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { Sheet } from '../common/Sheet';
-import { AmountField, Button, Segmented, SuccessView, TextLink, parseAmount } from '../ui';
+import { AmountField, Button, FeeSummary, Segmented, SuccessView, TextLink, parseAmount } from '../ui';
+import { feeFor } from '../../utils/fees';
+import { shareText } from '../../utils/share';
 
 type Mode = 'pay' | 'receive';
 interface Payee {
@@ -74,16 +76,8 @@ const ReceiveView: React.FC = () => {
     }
   };
   const share = async () => {
-    const text = `Envoyez-moi de l'argent sur Payzed : ${user.name} · ${user.phone}`;
-    try {
-      if (navigator.share) await navigator.share({ title: 'Payzed', text });
-      else {
-        await navigator.clipboard.writeText(text);
-        showToast('Coordonnées copiées');
-      }
-    } catch {
-      // partage annulé
-    }
+    const res = await shareText('Payzed', `Envoyez-moi de l'argent sur Payzed : ${user.name} · ${user.phone}`);
+    if (res === 'copied') showToast('Coordonnées copiées');
   };
 
   return (
@@ -227,6 +221,7 @@ const PayForm: React.FC<{ payee: Payee; onDone: () => void; onCancel: () => void
   const [amount, setAmount] = useState('');
   const [done, setDone] = useState<number | null>(null);
   const value = parseAmount(amount);
+  const fee = feeFor(value);
   const initials = payee.name.split(/\s+/).map((p) => p[0] ?? '').join('').slice(0, 2).toUpperCase();
 
   if (done !== null) return <SuccessView amount={formatCurrency(done, 'XOF')} text={`payés à ${payee.name}`} onDone={onDone} />;
@@ -236,7 +231,7 @@ const PayForm: React.FC<{ payee: Payee; onDone: () => void; onCancel: () => void
       onSubmit={(e) => {
         e.preventDefault();
         if (!(value > 0)) return showToast('Entrez un montant');
-        if (value > balance) return showToast('Solde insuffisant');
+        if (value + fee > balance) return showToast('Solde insuffisant (frais compris)');
         addTransaction({
           title: payee.name,
           subtitle: 'Paiement par QR code',
@@ -247,7 +242,7 @@ const PayForm: React.FC<{ payee: Payee; onDone: () => void; onCancel: () => void
           icon: 'ArrowUpRight',
           recipient: `${payee.name} · ${prettyPhone(payee.phone)}`,
           recipientPhone: payee.phone,
-          fee: 0,
+          fee,
           paymentMethod: 'QR code Payzed',
         });
         triggerSuccessConfetti();
@@ -261,7 +256,8 @@ const PayForm: React.FC<{ payee: Payee; onDone: () => void; onCancel: () => void
         <p className="text-[15px] text-neutral-500">{prettyPhone(payee.phone)}</p>
       </div>
       <AmountField value={amount} onChange={setAmount} autoFocus hint={`Disponible : ${formatCurrency(balance, 'XOF')}`} />
-      <Button type="submit" className="w-full" disabled={!(value > 0)}>
+      {value > 0 && <FeeSummary amount={value} fee={fee} balance={balance} />}
+      <Button type="submit" className="w-full" disabled={!(value > 0) || value + fee > balance}>
         {value > 0 ? `Payer ${formatCurrency(value, 'XOF')}` : 'Payer'}
       </Button>
       <Button variant="ghost" className="w-full" onClick={onCancel}>

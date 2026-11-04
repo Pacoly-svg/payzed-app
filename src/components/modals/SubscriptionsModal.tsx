@@ -6,6 +6,7 @@ import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
 import { AmountField, Button, ChoiceGrid, EmptyState, Field, List, Row, parseAmount } from '../ui';
 import type { SubscriptionItem } from '../../types/banking';
+import { feeFor } from '../../utils/fees';
 
 type View = { name: 'list' } | { name: 'detail'; id: string } | { name: 'add' };
 
@@ -85,7 +86,8 @@ const SubscriptionDetail: React.FC<{ sub: SubscriptionItem; onBack: () => void; 
   const paused = sub.status === 'paused';
 
   const payNow = () => {
-    if (sub.amount > balance) return showToast('Solde insuffisant');
+    const fee = feeFor(sub.amount);
+    if (sub.amount + fee > balance) return showToast('Solde insuffisant (frais compris)');
     addTransaction({
       title: sub.name,
       subtitle: 'Abonnement',
@@ -96,10 +98,10 @@ const SubscriptionDetail: React.FC<{ sub: SubscriptionItem; onBack: () => void; 
       icon: 'Tv',
       brandLogo: sub.name,
       recipient: sub.provider || sub.name,
-      fee: 0,
+      fee,
       paymentMethod: 'Carte Payzed',
     });
-    showToast(`${sub.name} payé`);
+    showToast(`${sub.name} payé · frais ${formatCurrency(fee, 'XOF')}`);
   };
 
   return (

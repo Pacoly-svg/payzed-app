@@ -4,7 +4,8 @@ import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
-import { AmountField, Button, ChoiceGrid, Field, SuccessView, parseAmount } from '../ui';
+import { AmountField, Button, ChoiceGrid, FeeSummary, Field, SuccessView, parseAmount } from '../ui';
+import { feeFor } from '../../utils/fees';
 import type { TransactionCategory } from '../../types/banking';
 
 const BILLS = [
@@ -24,13 +25,14 @@ export const BillsModal: React.FC = () => {
   const bill = BILLS.find((b) => b.id === billId)!;
   const close = () => setActiveModal(null);
   const value = parseAmount(amount);
-  const ready = reference.trim().length > 0 && value > 0;
+  const fee = feeFor(value);
+  const ready = reference.trim().length > 0 && value > 0 && value + fee <= balance;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reference.trim()) return showToast('Entrez la référence');
     if (!(value > 0)) return showToast('Entrez un montant');
-    if (value > balance) return showToast('Solde insuffisant');
+    if (value + fee > balance) return showToast('Solde insuffisant (frais compris)');
     addTransaction({
       title: bill.label,
       subtitle: `Réf. ${reference.trim()}`,
@@ -41,7 +43,7 @@ export const BillsModal: React.FC = () => {
       icon: bill.icon,
       brandLogo: bill.id,
       recipient: bill.label,
-      fee: 0,
+      fee,
       paymentMethod: 'Compte Payzed',
     });
     triggerSuccessConfetti();
@@ -57,8 +59,8 @@ export const BillsModal: React.FC = () => {
   }
 
   return (
-    <Sheet title="Payer une facture" onClose={close}>
-      <form onSubmit={submit} className="space-y-5">
+    <Sheet title="Payer une facture" onClose={close} footer={<Button type="submit" form="bills-form" className="w-full" disabled={!ready}>{value > 0 ? `Payer ${formatCurrency(value, currency)}` : 'Payer'}</Button>}>
+      <form id="bills-form" onSubmit={submit} className="space-y-5">
         <ChoiceGrid
           value={billId}
           onChange={setBillId}
@@ -66,9 +68,7 @@ export const BillsModal: React.FC = () => {
         />
         <Field label={bill.refLabel} value={reference} onChange={(e) => setReference(e.target.value)} inputMode="text" autoComplete="off" />
         <AmountField value={amount} onChange={setAmount} hint={`Disponible : ${formatCurrency(balance, currency)}`} />
-        <Button type="submit" className="w-full" disabled={!ready}>
-          {value > 0 ? `Payer ${formatCurrency(value, currency)}` : 'Payer'}
-        </Button>
+        {value > 0 && <FeeSummary amount={value} fee={fee} balance={balance} />}
       </form>
     </Sheet>
   );
