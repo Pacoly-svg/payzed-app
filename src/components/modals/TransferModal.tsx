@@ -5,15 +5,12 @@ import { formatCurrency } from '../../utils/formatters';
 import { triggerSuccessConfetti } from '../../utils/confetti';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
-import { AmountField, Button, ChoiceGrid, FeeSummary, Field, SuccessView, parseAmount } from '../ui';
+import { AmountField, Button, ChoiceGrid, FeeSummary, Field, SuccessView, TextLink, parseAmount } from '../ui';
 import { feeFor } from '../../utils/fees';
+import { findProvider, providersIn } from '../../data/catalog';
 
-const RAILS = [
-  { id: 'payzed', label: 'Payzed' },
-  { id: 'wave', label: 'Wave' },
-  { id: 'orange', label: 'Orange Money' },
-] as const;
-type Rail = (typeof RAILS)[number]['id'];
+/** Moyens d'envoi affichés par défaut : Payzed + tous les Mobile Money du catalogue. */
+const BASE_RAILS = ['payzed', ...providersIn('mobile_money').map((p) => p.id)];
 
 const CONTACTS = [
   { name: 'Fatou Sow', phone: '+221 77 319 88 12' },
@@ -31,15 +28,21 @@ const PayzedMark = () => (
 );
 
 export const TransferModal: React.FC = () => {
-  const { setActiveModal, currency, balance, addTransaction, showToast } = useBanking();
-  const [rail, setRail] = useState<Rail>('payzed');
+  const { setActiveModal, modalParams, currency, balance, addTransaction, showToast } = useBanking();
+  const preset = findProvider(modalParams.provider);
+  // Un service choisi dans « Tous les services » (banque, transfert…) s'ajoute aux choix
+  const [rails] = useState(() => (preset && !BASE_RAILS.includes(preset.id) ? [...BASE_RAILS, preset.id] : BASE_RAILS));
+  const [rail, setRail] = useState<string>(preset?.id ?? 'payzed');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
   const [done, setDone] = useState<number | null>(null);
 
   const close = () => setActiveModal(null);
-  const railLabel = RAILS.find((r) => r.id === rail)!.label;
+  const railProvider = rail === 'payzed' ? undefined : findProvider(rail);
+  const railLabel = railProvider?.name ?? 'Payzed';
+  const isBank = railProvider?.category === 'banks';
+  const isIntl = railProvider?.category === 'transfers';
   const value = parseAmount(amount);
   const fee = feeFor(value);
   const ready = name.trim().length > 0 && value > 0 && value + fee <= balance;
@@ -52,12 +55,12 @@ export const TransferModal: React.FC = () => {
     addTransaction({
       title: name.trim(),
       subtitle: `Envoi via ${railLabel}`,
-      category: 'Revenus & Virements',
       type: 'transfer_out',
       amount: -value,
       status: 'completed',
       icon: 'ArrowUpRight',
       brandLogo: rail === 'payzed' ? undefined : rail,
+      category: 'Revenus & Virements',
       recipient: phone.trim() ? `${name.trim()} · ${phone.trim()}` : name.trim(),
       recipientPhone: phone.trim() || undefined,
       fee,
@@ -112,22 +115,26 @@ export const TransferModal: React.FC = () => {
           </div>
         </div>
 
-        <ChoiceGrid
-          value={rail}
-          onChange={setRail}
-          options={RAILS.map((r) => ({
-            id: r.id,
-            label: r.label,
-            icon: r.id === 'payzed' ? <PayzedMark /> : <BrandLogo brand={r.id} size={32} className="rounded-lg" />,
-          }))}
-        />
+        <div className="space-y-2">
+          <ChoiceGrid
+            columns={3}
+            value={rail}
+            onChange={setRail}
+            options={rails.map((id) => ({
+              id,
+              label: id === 'payzed' ? 'Payzed' : findProvider(id)?.name ?? id,
+              icon: id === 'payzed' ? <PayzedMark /> : <BrandLogo brand={id} size={32} className="rounded-lg" />,
+            }))}
+          />
+          <TextLink onClick={() => setActiveModal('services')}>Banques et transferts internationaux →</TextLink>
+        </div>
 
         <Field label="Bénéficiaire" placeholder="Nom et prénom" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
         <Field
-          label="Numéro"
-          type="tel"
-          inputMode="tel"
-          placeholder="77 123 45 67"
+          label={isBank ? 'N° de compte (RIB)' : isIntl ? 'Numéro ou e-mail' : 'Numéro'}
+          type={isBank || isIntl ? 'text' : 'tel'}
+          inputMode={isBank ? 'text' : isIntl ? 'email' : 'tel'}
+          placeholder={isBank ? 'SN012 01001 …' : isIntl ? '+33 6 12 34 56 78' : '77 123 45 67'}
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           autoComplete="off"

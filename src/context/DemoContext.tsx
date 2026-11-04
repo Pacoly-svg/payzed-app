@@ -4,6 +4,7 @@ import { useBanking } from './BankingContext';
 import { formatCurrency } from '../utils/formatters';
 import type { Transaction } from '../types/banking';
 import { feeFor } from '../utils/fees';
+import { findProvider, type CategoryId } from '../data/catalog';
 
 /*
  * Mode démo (présentations) : simuler des entrées / sorties d'argent avec
@@ -11,15 +12,8 @@ import { feeFor } from '../utils/fees';
  * « simulée » dans son détail.
  */
 
-export const DEMO_PLATFORMS = [
-  { id: 'payzed', label: 'Payzed' },
-  { id: 'wave', label: 'Wave' },
-  { id: 'orange', label: 'Orange Money' },
-  { id: 'yas', label: 'Mixx by Yas' },
-  { id: 'paypal', label: 'PayPal' },
-  { id: 'ecobank', label: 'Ecobank' },
-] as const;
-export type DemoPlatform = (typeof DEMO_PLATFORMS)[number]['id'];
+/** Familles de canaux proposées dans SIM (issues du catalogue). */
+export const SIM_CATEGORIES: CategoryId[] = ['mobile_money', 'banks', 'transfers'];
 
 export interface CustomPlatform {
   id: string;
@@ -127,7 +121,8 @@ export const DemoProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [customPlatforms]);
 
   const platformLabel = useCallback(
-    (id: string) => DEMO_PLATFORMS.find((p) => p.id === id)?.label ?? customRef.current.find((p) => p.id === id)?.name ?? 'Payzed',
+    (id: string) =>
+      id === 'payzed' ? 'Payzed' : customRef.current.find((p) => p.id === id)?.name ?? findProvider(id)?.name ?? 'Payzed',
     [],
   );
   const platformLogo = useCallback((id: string) => customRef.current.find((p) => p.id === id)?.logo ?? id, []);

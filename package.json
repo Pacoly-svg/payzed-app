@@ -1,7 +1,7 @@
 {
   "name": "payzed-app",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "@capacitor/android": "^8.5.3",
     "@capacitor/core": "^8.5.3",
     "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/keyboard": "^8.0.6",
     "@capacitor/share": "^8.0.3",
     "@tailwindcss/vite": "^4.3.3",
     "jsqr": "^1.4.0",

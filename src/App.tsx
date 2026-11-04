@@ -8,6 +8,7 @@ import { ComptesScreen } from './components/comptes/ComptesScreen';
 import { AppPinLock } from './components/security/AppPinLock';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { NotificationBanner } from './components/common/NotificationBanner';
+import { KeyboardDebug } from './components/common/KeyboardDebug';
 import { DemoProvider } from './context/DemoContext';
 
 // Écrans et fenêtres chargés à la demande : démarrage plus rapide.
@@ -20,11 +21,13 @@ const SubscriptionsModal = lazy(() => import('./components/modals/SubscriptionsM
 const BillsModal = lazy(() => import('./components/modals/BillsModal').then((m) => ({ default: m.BillsModal })));
 const TopUpModal = lazy(() => import('./components/modals/TopUpModal').then((m) => ({ default: m.TopUpModal })));
 const TransactionDetailsModal = lazy(() => import('./components/modals/TransactionDetailsModal').then((m) => ({ default: m.TransactionDetailsModal })));
+const ServicesModal = lazy(() => import('./components/modals/ServicesModal').then((m) => ({ default: m.ServicesModal })));
 const VaultsModal = lazy(() => import('./components/modals/VaultsModal').then((m) => ({ default: m.VaultsModal })));
 
 const MODALS = {
   qr: QRCodeModal,
   scan: QRCodeModal,
+  services: ServicesModal,
   transfer: TransferModal,
   subscriptions: SubscriptionsModal,
   bills: BillsModal,
@@ -67,6 +70,7 @@ const PayzedApp: React.FC = () => {
 
       {isLocked && <AppPinLock />}
       <NotificationBanner />
+      <KeyboardDebug />
       <Toast />
     </>
   );

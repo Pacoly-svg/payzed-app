@@ -4,10 +4,36 @@ import { useBanking } from '../../context/BankingContext';
 import { Sheet } from '../common/Sheet';
 import { DemoSheet } from './DemoSheet';
 import { resizeImage } from '../../utils/image';
+import { KB_DEBUG_KEY } from '../common/KeyboardDebug';
 import { Button, Field, IconBox, List, PageTitle, Row, SectionTitle, Toggle } from '../ui';
 
 const initialsOf = (name: string) =>
   name.trim().split(/\s+/).map((n) => n[0] ?? '').join('').slice(0, 2).toUpperCase() || 'PZ';
+
+/** Touchez 5 fois la version pour afficher le diagnostic clavier. */
+const VersionLabel: React.FC = () => {
+  const taps = useRef<number[]>([]);
+  const { showToast } = useBanking();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        const now = Date.now();
+        taps.current = [...taps.current.filter((t) => now - t < 2000), now];
+        if (taps.current.length >= 5) {
+          taps.current = [];
+          const on = localStorage.getItem(KB_DEBUG_KEY) !== '1';
+          localStorage.setItem(KB_DEBUG_KEY, on ? '1' : '0');
+          window.dispatchEvent(new Event('payzed:kb-debug'));
+          showToast(on ? 'Diagnostic clavier activé' : 'Diagnostic clavier désactivé');
+        }
+      }}
+      className="block w-full text-center text-[13px] text-neutral-400 pb-2"
+    >
+      Payzed · version {__APP_VERSION__}
+    </button>
+  );
+};
 
 export const SettingsScreen: React.FC = () => {
   const { user, updateUser, lockApp, isBiometricsEnabled, toggleBiometrics, resetToDemoDefaults, showToast } = useBanking();
@@ -131,7 +157,7 @@ export const SettingsScreen: React.FC = () => {
         </List>
       </section>
 
-      <p className="text-center text-[13px] text-neutral-400 pb-2">Payzed · version {__APP_VERSION__}</p>
+      <VersionLabel />
 
       {sheet === 'pin' && <PinSheet onClose={() => setSheet(null)} />}
       {sheet === 'demo' && <DemoSheet onClose={() => setSheet(null)} />}

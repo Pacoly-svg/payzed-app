@@ -47,7 +47,7 @@ const CardVisual: React.FC<{ card: VirtualCardData; flipped: boolean; onCopy: ()
               <span className="block text-[18px] font-semibold tracking-[0.15em] tabular-nums">•••• {card.fullNumber.replace(/\s/g, '').slice(-4)}</span>
               <span className="block text-[13px] font-semibold uppercase mt-1 truncate text-white/80">{card.cardholderName}</span>
             </span>
-            <span className="text-[26px] font-extrabold italic tracking-tighter leading-none shrink-0">VISA</span>
+            <img src="/logos/visa-white.svg" alt="Visa" className="h-12 w-12 -my-3 -mr-1 shrink-0" />
           </span>
         </button>
 
@@ -183,7 +183,7 @@ export const CardsScreen: React.FC = () => {
             </div>
           )}
         </div>
-        <p className="text-center text-[13px] text-neutral-500 h-5">
+        <p className="text-center text-[13px] text-neutral-500 min-h-5 leading-5">
           {revealed
             ? `Informations masquées dans ${secondsLeft} s`
             : card.isFrozen

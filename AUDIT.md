@@ -1,5 +1,31 @@
 # Audit Payzed
 
+## Version 1.5.0
+
+### Saisie au clavier — cause et correction
+**Cause :** selon le téléphone (version d'Android, de la WebView et du clavier Samsung/Gboard), le clavier soit *réduit* la page, soit se *pose par-dessus*. L'app ne s'appuyait que sur des mesures du navigateur (`visualViewport`), peu fiables dans la WebView Android quand le clavier recouvre la page : le champ restait caché sous le clavier.
+
+**Correction :**
+- Plugin natif **@capacitor/keyboard** : Android donne la hauteur exacte du clavier.
+- `src/utils/keyboard.ts` combine 3 signaux (plugin natif, taille de la WebView, visualViewport) et calcule la partie de l'écran réellement recouverte (`--kb`). L'app et les fenêtres remontent d'autant, la barre du bas se masque, le champ actif est recentré (et ramené à l'écran pendant la frappe).
+- **Test automatisé** de tous les champs (Envoyer, Crédit, Factures, Services, Épargne, Abonnements, Plafond, Profil, Code PIN, SIM) avec clavier simulé dans les deux modes, sur 360 et 412 px : **88/88 champs visibles**. Contre-test sans la correction : 7/22 seulement.
+- **Diagnostic caché** : toucher 5 fois « Payzed · version » dans Profil affiche les mesures du clavier (à envoyer en capture si un téléphone pose encore problème).
+
+### Logos
+**Cause :** la plupart des logos sont des logos *horizontaux* (CBAO, DGID, Sen'Eau, Eiffage/Rapido, Senelec…) affichés dans de petites cases carrées : ils devenaient minuscules, donc « invisibles ». Certains services avaient aussi été retirés des écrans lors de la simplification.
+
+**Correction :** icônes carrées 160×160 générées à partir des fichiers officiels du projet (symbole isolé, proportions respectées) dans `public/logos/tiles/`. Nouveaux logos officiels depuis la bibliothèque Simple Icons (CC0) : Western Union, MoneyGram, YouTube, Deezer, Apple Music. Services sans logo officiel disponible hors-ligne : monogramme aux couleurs de la marque (Wizall, UBA, BOA, Ria, Canal+, StarTimes) — à remplacer en déposant le fichier officiel.
+
+### Catalogue des opérateurs et services
+`src/data/catalog.ts` — 12 catégories : Mobile Money, Banques, Transferts d'argent, Crédit & télécoms, Électricité, Eau, Internet, TV, Transport & péage, Impôts & taxes, Assurances, Abonnements (35 services).
+- Nouvelle page **Services** (accueil) : recherche + filtres par catégorie ; toucher un service ouvre le bon parcours déjà présélectionné.
+- Envoyer, Crédit, Factures (par catégorie), Abonnements et SIM lisent ce catalogue.
+- **Ajouter un service** : une ligne dans `PROVIDERS` (+ logo dans `public/logos/tiles/`). **Ajouter une catégorie** : une ligne dans `CATEGORIES`.
+
+### Carte
+Vérifiée sans débordement à 320, 360, 393, 412 et 480 px (recto, verso, actions, fenêtres).
+
+
 ## Version 1.4.0
 
 | Demande | Réalisation |

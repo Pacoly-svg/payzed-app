@@ -6,22 +6,19 @@ import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
 import { AmountField, Button, ChoiceGrid, FeeSummary, Field, SuccessView, parseAmount } from '../ui';
 import { feeFor } from '../../utils/fees';
+import { findProvider, providersIn } from '../../data/catalog';
 
-const OPERATORS = [
-  { id: 'orange', label: 'Orange' },
-  { id: 'yas', label: 'Yas' },
-  { id: 'expresso', label: 'Expresso' },
-] as const;
-type Operator = (typeof OPERATORS)[number]['id'];
+const OPERATORS = providersIn('telecom');
 
 export const TopUpModal: React.FC = () => {
-  const { setActiveModal, currency, balance, user, addTransaction, showToast } = useBanking();
-  const [op, setOp] = useState<Operator>('orange');
+  const { setActiveModal, modalParams, currency, balance, user, addTransaction, showToast } = useBanking();
+  const preset = findProvider(modalParams.provider);
+  const [op, setOp] = useState<string>(preset?.category === 'telecom' ? preset.id : OPERATORS[0].id);
   const [phone, setPhone] = useState(user.phone);
   const [amount, setAmount] = useState('');
   const [done, setDone] = useState<number | null>(null);
   const close = () => setActiveModal(null);
-  const opLabel = OPERATORS.find((o) => o.id === op)!.label;
+  const opLabel = OPERATORS.find((o) => o.id === op)?.name ?? op;
   const value = parseAmount(amount);
   const fee = feeFor(value);
   const ready = phone.replace(/\D/g, '').length >= 9 && value > 0 && value + fee <= balance;
@@ -62,7 +59,8 @@ export const TopUpModal: React.FC = () => {
         <ChoiceGrid
           value={op}
           onChange={setOp}
-          options={OPERATORS.map((o) => ({ id: o.id, label: o.label, icon: <BrandLogo brand={o.id} size={32} className="rounded-lg" /> }))}
+          columns={Math.min(3, OPERATORS.length)}
+          options={OPERATORS.map((o) => ({ id: o.id, label: o.name, icon: <BrandLogo brand={o.id} size={32} className="rounded-lg" /> }))}
         />
         <Field
           label="Numéro"

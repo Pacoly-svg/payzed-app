@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ImagePlus, Plus, Timer } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
-import { DEMO_PLATFORMS, useDemo } from '../../context/DemoContext';
+import { SIM_CATEGORIES, useDemo } from '../../context/DemoContext';
+import { categoryOf, findProvider, providersIn, type CategoryId } from '../../data/catalog';
 import { formatCurrency } from '../../utils/formatters';
 import { feeFor } from '../../utils/fees';
 import { resizeImage } from '../../utils/image';
@@ -96,6 +97,7 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [view, setView] = useState<'main' | 'channel'>('main');
   const [direction, setDirection] = useState<'in' | 'out'>('in');
   const [platform, setPlatform] = useState<string>('wave');
+  const [group, setGroup] = useState<CategoryId | 'custom'>('mobile_money');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
@@ -116,6 +118,7 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         onClose={onClose}
         onCreated={(id) => {
           setPlatform(id);
+          setGroup('custom');
           setView('main');
         }}
       />
@@ -142,9 +145,21 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     }
   };
 
-  const options = [
-    ...DEMO_PLATFORMS.map((p) => ({ id: p.id as string, label: p.label, icon: <BrandLogo brand={p.id} size={32} className="rounded-lg" /> })),
-    ...customPlatforms.map((p) => ({ id: p.id, label: p.name, icon: <BrandLogo brand={p.logo} size={32} className="rounded-lg" /> })),
+  const groupIds =
+    group === 'custom'
+      ? customPlatforms.map((p) => p.id)
+      : [...(group === 'mobile_money' ? ['payzed'] : []), ...providersIn(group).map((p) => p.id)];
+  const options = groupIds.map((id) => {
+    const custom = customPlatforms.find((p) => p.id === id);
+    return {
+      id,
+      label: custom?.name ?? (id === 'payzed' ? 'Payzed' : findProvider(id)?.name ?? id),
+      icon: <BrandLogo brand={custom?.logo ?? id} size={32} className="rounded-lg" />,
+    };
+  });
+  const groups: { id: CategoryId | 'custom'; label: string }[] = [
+    ...SIM_CATEGORIES.map((c) => ({ id: c, label: categoryOf(c).label })),
+    ...(customPlatforms.length ? [{ id: 'custom' as const, label: 'Mes canaux' }] : []),
   ];
 
   return (
@@ -177,6 +192,20 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           />
 
           <div className="space-y-2">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5">
+              {groups.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setGroup(g.id)}
+                  className={`h-9 px-4 rounded-full text-sm font-bold shrink-0 transition-colors ${
+                    group === g.id ? 'bg-black text-white' : 'bg-neutral-100 text-neutral-700'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
             <ChoiceGrid columns={3} value={platform} onChange={setPlatform} options={options} />
             <div className="flex items-center justify-between">
               <TextLink className="flex items-center gap-1.5" onClick={() => setView('channel')}>
@@ -188,6 +217,7 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   onClick={() => {
                     removeCustomPlatform(platform);
                     setPlatform('wave');
+                    setGroup('mobile_money');
                   }}
                 >
                   Supprimer ce canal

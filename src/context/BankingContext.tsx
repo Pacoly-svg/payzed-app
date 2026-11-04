@@ -18,7 +18,12 @@ import {
 } from '../data/initialData';
 import { formatTransactionDate } from '../utils/formatters';
 
-export type ModalType = 'qr' | 'scan' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'vaults' | null;
+export type ModalType = 'qr' | 'scan' | 'services' | 'transfer' | 'subscriptions' | 'bills' | 'topup' | 'vaults' | null;
+
+export interface ModalParams {
+  /** Id d'un service du catalogue (ex. « senelec », « wave »). */
+  provider?: string;
+}
 
 type NewTransaction = Omit<Transaction, 'id' | 'timestamp' | 'date' | 'reference' | 'currency'> & {
   currency?: CurrencyCode;
@@ -87,7 +92,9 @@ interface BankingContextType {
 
   // Fenêtres
   activeModal: ModalType;
-  setActiveModal: (modal: ModalType) => void;
+  /** Ouvre une fenêtre, éventuellement avec un service présélectionné (catalogue). */
+  setActiveModal: (modal: ModalType, params?: ModalParams) => void;
+  modalParams: ModalParams;
 
   // Messages
   toastMessage: string | null;
@@ -161,7 +168,12 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [subscriptions, setSubscriptions] = useState<SubscriptionItem[]>(() => load('subscriptions', INITIAL_SUBSCRIPTIONS, isArray));
   const [vaults, setVaults] = useState<VaultItem[]>(() => load('vaults', INITIAL_VAULTS, isArray));
 
-  const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const [activeModal, setActiveModalState] = useState<ModalType>(null);
+  const [modalParams, setModalParams] = useState<ModalParams>({});
+  const setActiveModal = useCallback((modal: ModalType, params?: ModalParams) => {
+    setModalParams(params ?? {});
+    setActiveModalState(modal);
+  }, []);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -468,6 +480,7 @@ export const BankingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteVault,
         activeModal,
         setActiveModal,
+        modalParams,
         toastMessage,
         showToast,
         resetToDemoDefaults,

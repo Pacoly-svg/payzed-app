@@ -1,12 +1,12 @@
 import React from 'react';
-import { FileText, PiggyBank, Repeat, Smartphone } from 'lucide-react';
+import { FileText, LayoutGrid, PiggyBank, Smartphone } from 'lucide-react';
 import { useBanking, type ModalType } from '../../context/BankingContext';
 
 const ACTIONS: { id: Exclude<ModalType, null>; label: string; icon: React.ElementType }[] = [
   { id: 'topup', label: 'Crédit', icon: Smartphone },
   { id: 'bills', label: 'Factures', icon: FileText },
   { id: 'vaults', label: 'Épargne', icon: PiggyBank },
-  { id: 'subscriptions', label: 'Abos', icon: Repeat },
+  { id: 'services', label: 'Services', icon: LayoutGrid },
 ];
 
 export const QuickActionsGrid: React.FC = () => {

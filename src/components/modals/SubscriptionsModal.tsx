@@ -7,18 +7,26 @@ import { Sheet } from '../common/Sheet';
 import { AmountField, Button, ChoiceGrid, EmptyState, Field, List, Row, parseAmount } from '../ui';
 import type { SubscriptionItem } from '../../types/banking';
 import { feeFor } from '../../utils/fees';
+import { findProvider, providersIn } from '../../data/catalog';
 
 type View = { name: 'list' } | { name: 'detail'; id: string } | { name: 'add' };
 
+/** Prix mensuels indicatifs (FCFA) pour préremplir le montant. */
+const DEFAULT_PRICES: Record<string, number> = {
+  netflix: 6500,
+  spotify: 3500,
+  youtube: 3500,
+  deezer: 3000,
+  applemusic: 3500,
+  chatgpt: 13000,
+  claude: 13000,
+  gemini: 13000,
+};
 const SERVICES = [
-  { id: 'spotify', label: 'Spotify', amount: 3500 },
-  { id: 'netflix', label: 'Netflix', amount: 6500 },
-  { id: 'chatgpt', label: 'ChatGPT', amount: 13000 },
-  { id: 'claude', label: 'Claude', amount: 13000 },
-  { id: 'gemini', label: 'Gemini', amount: 13000 },
+  ...providersIn('subscriptions').map((p) => ({ id: p.id, label: p.name, amount: DEFAULT_PRICES[p.id] ?? 0 })),
   { id: 'autre', label: 'Autre', amount: 0 },
-] as const;
-type ServiceId = (typeof SERVICES)[number]['id'];
+];
+type ServiceId = string;
 
 const nextMonth = () => {
   const d = new Date();
@@ -27,8 +35,9 @@ const nextMonth = () => {
 };
 
 export const SubscriptionsModal: React.FC = () => {
-  const { setActiveModal, subscriptions } = useBanking();
-  const [view, setView] = useState<View>({ name: 'list' });
+  const { setActiveModal, modalParams, subscriptions } = useBanking();
+  const preset = findProvider(modalParams.provider);
+  const [view, setView] = useState<View>(preset?.category === 'subscriptions' ? { name: 'add' } : { name: 'list' });
   const close = () => setActiveModal(null);
   const back = () => setView({ name: 'list' });
 
@@ -36,7 +45,7 @@ export const SubscriptionsModal: React.FC = () => {
     const sub = subscriptions.find((s) => s.id === view.id);
     if (sub) return <SubscriptionDetail sub={sub} onBack={back} onClose={close} />;
   }
-  if (view.name === 'add') return <SubscriptionAdd onBack={back} onClose={close} />;
+  if (view.name === 'add') return <SubscriptionAdd onBack={back} onClose={close} initial={preset?.category === 'subscriptions' ? preset.id : undefined} />;
 
   const active = subscriptions.filter((s) => s.status === 'active');
   const monthly = active.reduce((sum, s) => sum + (s.billingCycle === 'yearly' ? Math.round(s.amount / 12) : s.amount), 0);
@@ -144,11 +153,12 @@ const SubscriptionDetail: React.FC<{ sub: SubscriptionItem; onBack: () => void; 
   );
 };
 
-const SubscriptionAdd: React.FC<{ onBack: () => void; onClose: () => void }> = ({ onBack, onClose }) => {
+const SubscriptionAdd: React.FC<{ onBack: () => void; onClose: () => void; initial?: string }> = ({ onBack, onClose, initial }) => {
   const { addSubscription, showToast } = useBanking();
-  const [service, setService] = useState<ServiceId>('spotify');
-  const [name, setName] = useState('Spotify');
-  const [amount, setAmount] = useState('3500');
+  const first = SERVICES.find((x) => x.id === initial) ?? SERVICES[0];
+  const [service, setService] = useState<ServiceId>(first.id);
+  const [name, setName] = useState(first.label);
+  const [amount, setAmount] = useState(first.amount ? String(first.amount) : '');
   const value = parseAmount(amount);
   const ready = name.trim().length > 0 && value > 0;
 
