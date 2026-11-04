@@ -1,5 +1,37 @@
 # Audit Payzed
 
+## Version 1.7.0
+
+### Saisie : le texte n'apparaissait qu'après la fermeture du clavier
+- **Cause identifiée :** le plugin `@capacitor/keyboard` (ajouté en 1.5) enregistre un rappel d'animation des insets
+  sur la vue racine en mode `DISPATCH_MODE_STOP` : les animations du clavier ne sont plus transmises aux vues enfants,
+  dont la WebView, qui ne se redessine plus pendant que le clavier est ouvert. En parallèle, la gestion « bord à bord »
+  de `SystemBars` (`insetsHandling: css` + `viewport-fit=cover`) ajoutait un second décalage de la fenêtre.
+- **Correction :** suppression du plugin clavier ; `SystemBars.insetsHandling = 'disable'` pour revenir au
+  redimensionnement Android standard (`adjustResize`), sans mode bord à bord ; `viewport` en `interactive-widget=resizes-content` ;
+  animations des fenêtres en `fill-mode: backwards` (aucune transformation CSS ne reste appliquée après l'ouverture) ;
+  script clavier allégé (plus aucun défilement ni écriture DOM pendant la frappe).
+- À confirmer sur téléphone (non vérifiable sans appareil Android) : le panneau de diagnostic (5 touches sur la version)
+  reste disponible.
+
+### Interface
+- **Paiement** remplace « Factures » et « Tous les services » : un seul point d'entrée pour factures, banques, Mobile Money,
+  transferts, TV et abonnements (par service ou par opérateur, avec recherche).
+- En-tête : photo de profil retirée (le Profil est dans la barre du bas).
+- Profil : la bascule s'appelle **SIM** (sans sous-titre) ; l'écran ouvert s'appelle **Simulations**.
+- Épargne : total présenté comme le solde de l'accueil, avec l'œil afficher/masquer ; mention « N coffres » retirée.
+- Carte : recto et verso fidèles à une vraie carte (puce, sans contact, numéro en relief, VALID THRU, titulaire, Visa ;
+  bande magnétique, panneau de signature, CVV, hologramme irisé animé, mentions). Toucher = retourner ; œil = afficher/masquer.
+  Le Retour Android masque d'abord les infos puis remet le recto.
+- Plafond : montant encore disponible mis en avant, dépensé / plafond, date de remise à zéro, réglage par curseur ou saisie.
+
+### Logos
+Intégrés depuis les fichiers fournis : Orange Money, Wizall, Canal+, StarTimes, UBA (voir `docs/LOGOS.md`).
+Ria, Bank of Africa et Société Générale : envoyés pendant le travail mais non reçus comme fichiers.
+
+---
+
+
 ## Version 1.6.0 — audit global, corrections et optimisation
 
 ### Priorité 1 — Corrections bloquantes

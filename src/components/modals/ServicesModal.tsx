@@ -55,7 +55,7 @@ const SearchBox: React.FC<{ value: string; onChange: (v: string) => void }> = ({
       enterKeyHint="search"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      placeholder="Rechercher un service ou un opérateur"
+      placeholder="Senelec, Wave, Canal+, UBA…"
       className="flex-1 min-w-0 bg-transparent text-[16px] font-medium placeholder:text-neutral-400 focus:outline-none"
       autoComplete="off"
     />
@@ -133,7 +133,7 @@ export const ServicesModal: React.FC = () => {
   const operators = query ? SERVICE_OPERATORS.filter((o) => results.some((s) => s.operatorId === o.id)) : SERVICE_OPERATORS;
 
   return (
-    <Sheet title="Tous les services" onClose={close}>
+    <Sheet title="Paiement" onClose={close}>
       <div className="space-y-5">
         <SearchBox value={query} onChange={setQuery} />
         <Segmented

@@ -17,7 +17,7 @@ const check = (label, cond, extra = '') => { cond ? pass++ : fail++; console.log
   const openSim = async () => {
     await p.getByRole('button', { name: 'Profil', exact: true }).tap();
     await p.waitForTimeout(300);
-    await p.getByRole('button', { name: /^SIM/ }).tap();
+    await p.getByRole('button', { name: /^Simulations/ }).tap();
     await p.waitForTimeout(400);
   };
   const fillSim = async ({ kind, name, amount, delay, unit, outcome }) => {
@@ -43,15 +43,15 @@ const check = (label, cond, extra = '') => { cond ? pass++ : fail++; console.log
   // Mode test protégé par le PIN
   await p.getByRole('button', { name: 'Profil', exact: true }).tap();
   await p.waitForTimeout(300);
-  check('SIM masqué tant que le mode test est inactif', (await p.getByRole('button', { name: /^SIM/ }).count()) === 0);
-  await p.getByRole('switch', { name: 'Mode test' }).tap();
+  check('Simulations masquées tant que SIM est inactif', (await p.getByRole('button', { name: /^Simulations/ }).count()) === 0);
+  await p.getByRole('switch', { name: 'SIM' }).tap();
   await p.locator('[role=dialog] input[type=password]').fill('0000');
   await p.getByRole('button', { name: 'Activer' }).tap();
   check('Mauvais code refusé', await p.getByText('Code incorrect').isVisible());
   await p.locator('[role=dialog] input[type=password]').fill('1234');
   await p.getByRole('button', { name: 'Activer' }).tap();
   await p.waitForTimeout(300);
-  check('SIM visible après activation par PIN', (await p.getByRole('button', { name: /^SIM/ }).count()) === 1);
+  check('Simulations visibles après activation de SIM par PIN', (await p.getByRole('button', { name: /^Simulations/ }).count()) === 1);
 
   // 1) Entrée réussie après 10 s : en attente → en cours → réussie
   await openSim();

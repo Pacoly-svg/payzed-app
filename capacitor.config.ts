@@ -14,8 +14,10 @@ const config: CapacitorConfig = {
       // L'app est toujours sur fond blanc : heure, réseau et batterie en NOIR,
       // même quand le téléphone est en mode sombre.
       style: 'LIGHT',
-      insetsHandling: 'css',
-      initialViewportFitValueHint: 'cover',
+      // Pas de mode « bord à bord » : Android redimensionne lui-même la fenêtre quand
+      // le clavier s'ouvre (adjustResize). Aucun double décalage, rafraîchissement normal
+      // du texte pendant la saisie.
+      insetsHandling: 'disable',
     },
   },
 };

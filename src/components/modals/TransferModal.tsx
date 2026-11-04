@@ -26,7 +26,7 @@ export const TransferModal: React.FC = () => {
   const { setActiveModal, modalParams, currency, balance, addTransaction } = useBanking();
   const preset = findService(modalParams.provider);
   const presetIsRail = preset && ['mobile_money', 'banks', 'transfers'].includes(preset.category);
-  // Un service choisi dans « Tous les services » (banque, transfert…) s'ajoute aux choix
+  // Un service choisi dans « Paiement » (banque, transfert…) s'ajoute aux choix
   const [rails] = useState(() => (presetIsRail && !BASE_RAILS.includes(preset.id) ? [...BASE_RAILS, preset.id] : BASE_RAILS));
   const [rail, setRail] = useState<string>(presetIsRail ? preset.id : 'payzed');
   const [name, setName] = useState('');

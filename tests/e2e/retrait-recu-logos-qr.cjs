@@ -77,7 +77,7 @@ function makeFakeCamera(dir) {
   await p.waitForTimeout(300);
 
   // Recherche + logos
-  await p.getByRole('button', { name: /Tous les services/ }).tap();
+  await p.getByRole('button', { name: 'Paiement', exact: true }).tap();
   await p.waitForTimeout(500);
   const logos = await p.locator('[role=dialog] img').evaluateAll((imgs) => imgs.map((i) => ({ src: i.getAttribute('src'), ok: i.complete && i.naturalWidth > 0 })));
   const broken = logos.filter((l) => !l.ok);

@@ -36,7 +36,7 @@ const check = (label, cond) => { cond ? pass++ : fail++; console.log(`${cond ? '
   check('Retour sur l’Accueil affiche « Appuyez encore… »', await p.getByText('Appuyez encore sur Retour pour quitter').isVisible());
 
   // Fenêtre vide : se ferme directement
-  await p.getByRole('button', { name: 'Factures', exact: true }).tap();
+  await p.getByRole('button', { name: 'Épargne', exact: true }).tap();
   await p.waitForTimeout(300);
   await back();
   check('Fenêtre sans saisie : Retour la ferme', (await dialogs()) === 0);
@@ -91,23 +91,29 @@ const check = (label, cond) => { cond ? pass++ : fail++; console.log(`${cond ? '
   check('Retour ferme ensuite Épargne', (await dialogs()) === 0);
 
   // Services → opérateur → retour
-  await p.getByRole('button', { name: /Tous les services/ }).tap();
+  await p.getByRole('button', { name: 'Paiement', exact: true }).tap();
   await p.waitForTimeout(300);
   await p.getByRole('button', { name: 'Par opérateur' }).tap();
   await p.locator('[role=dialog] button:has-text("Orange")').first().tap();
   await p.waitForTimeout(300);
   check('Fiche opérateur Orange : 4 parcours (Orange Money, retrait, crédit, Fibre)', (await p.locator('[role=dialog] button:has(svg.lucide-chevron-right)').count()) === 4);
   await back();
-  check('Retour depuis la fiche opérateur revient à la liste', (await title()) === 'Tous les services');
+  check('Retour depuis la fiche opérateur revient à la liste', (await title()) === 'Paiement');
   await back();
 
   // Carte : Retour masque d'abord les infos
   await p.getByRole('button', { name: 'Carte', exact: true }).tap();
   await p.waitForTimeout(300);
-  await p.getByRole('button', { name: 'Infos' }).tap();
+  await p.getByRole('button', { name: 'Afficher', exact: true }).tap();
   await p.waitForTimeout(300);
   await back();
-  check('Retour masque les infos de la carte sans quitter l’onglet', (await p.locator('nav [aria-current=page]').innerText()).includes('Carte') && (await p.getByRole('button', { name: 'Infos' }).count()) === 1);
+  check('Retour masque les infos de la carte sans quitter l’onglet', (await p.locator('nav [aria-current=page]').innerText()).includes('Carte') && (await p.getByRole('button', { name: 'Afficher', exact: true }).count()) === 1);
+  // Toucher la carte la retourne ; Retour la remet côté recto
+  await p.locator('.card-flip').tap();
+  await p.waitForTimeout(700);
+  check('Toucher la carte affiche le verso', await p.locator('.card-flip.is-flipped').count() === 1);
+  await back();
+  check('Retour remet la carte côté recto', await p.locator('.card-flip.is-flipped').count() === 0);
 
   check('Aucune erreur JavaScript', errs.length === 0);
   console.log(`${pass} OK / ${fail} échec(s)`, errs);

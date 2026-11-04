@@ -139,20 +139,19 @@ export const SettingsScreen: React.FC = () => {
 
       {/* Données & présentation */}
       <section className="space-y-3">
-        <SectionTitle>Mode test & données</SectionTitle>
+        <SectionTitle>SIM & données</SectionTitle>
         <List>
           <Row
             icon={<IconBox><FlaskConical className="w-5 h-5" /></IconBox>}
-            title="Mode test"
-            subtitle="Donne accès aux simulations SIM"
+            title="SIM"
             trailing={
               <Toggle
                 on={testMode}
-                label="Mode test"
+                label="SIM"
                 onChange={() => {
                   if (testMode) {
                     setTestMode(false);
-                    showToast('Mode test désactivé');
+                    showToast('SIM désactivé');
                   } else setSheet('testmode');
                 }}
               />
@@ -162,8 +161,7 @@ export const SettingsScreen: React.FC = () => {
             <Row
               onClick={() => setSheet('demo')}
               icon={<IconBox><Presentation className="w-5 h-5" /></IconBox>}
-              title="SIM"
-              subtitle="Simuler entrées, envois, retraits et solde"
+              title="Simulations"
               trailing={<ChevronRight className="w-5 h-5 text-neutral-400" />}
             />
           )}
@@ -186,7 +184,7 @@ export const SettingsScreen: React.FC = () => {
           onEnabled={() => {
             setTestMode(true);
             setSheet(null);
-            showToast('Mode test activé');
+            showToast('SIM activé');
           }}
         />
       )}
@@ -268,7 +266,7 @@ const TestModeSheet: React.FC<{ onClose: () => void; onEnabled: () => void }> = 
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
   return (
-    <Sheet title="Activer le mode test" onClose={onClose}>
+    <Sheet title="Activer SIM" onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -281,7 +279,7 @@ const TestModeSheet: React.FC<{ onClose: () => void; onEnabled: () => void }> = 
         className="space-y-4"
       >
         <p className="text-[15px] text-neutral-600">
-          Le mode test donne accès aux simulations (SIM). Elles ne déplacent aucune somme réelle et restent identifiées comme simulées.
+          SIM donne accès aux simulations. Elles ne déplacent aucune somme réelle et restent identifiées comme simulées.
         </p>
         <Field
           label="Votre code PIN"

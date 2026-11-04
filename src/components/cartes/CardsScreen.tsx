@@ -1,90 +1,151 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, CreditCard, Eye, EyeOff, Lock, LockOpen, RefreshCw, SlidersHorizontal, Wifi } from 'lucide-react';
+import { Check, Copy, CreditCard, Eye, EyeOff, Lock, LockOpen, RefreshCw, RotateCw, SlidersHorizontal } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { useBackHandler } from '../../utils/backStack';
 import { formatCurrency, formatTransactionDate, maskCardNumber } from '../../utils/formatters';
 import { BrandLogo } from '../common/BrandLogo';
 import { Sheet } from '../common/Sheet';
-import { AmountField, Button, Card, EmptyState, IconBox, List, PageTitle, ProgressBar, Row, SectionTitle, TextLink, Toggle, parseAmount } from '../ui';
+import { AmountField, Button, EmptyState, IconBox, List, PageTitle, ProgressBar, Row, SectionTitle, TextLink, Toggle, groupDigits, parseAmount } from '../ui';
 import type { VirtualCardData } from '../../types/banking';
 import { countsAsMoved } from '../../utils/status';
 
 const CARD_TYPES = new Set(['card_payment', 'subscription', 'pos']);
 const MIN_LIMIT = 100_000;
 const MAX_LIMIT = 20_000_000;
+const LIMIT_STEP = 50_000;
 const REVEAL_SECONDS = 30;
 
-/* ---------- Visuel de la carte (recto / verso) ---------- */
+/* ---------- Éléments de la carte ---------- */
 
+/** Puce EMV dorée avec ses contacts. */
 const Chip = () => (
-  <span className="block w-11 h-8 rounded-md bg-gradient-to-br from-neutral-200 to-neutral-400 relative overflow-hidden">
-    <span className="absolute inset-x-0 top-1/2 h-px bg-neutral-500/50" />
-    <span className="absolute inset-y-0 left-1/3 w-px bg-neutral-500/50" />
-    <span className="absolute inset-y-0 right-1/3 w-px bg-neutral-500/50" />
+  <span className="chip relative block w-[13%] aspect-[1.3] rounded-[6px] overflow-hidden" aria-hidden>
+    <span className="absolute inset-x-0 top-1/3 h-px bg-black/25" />
+    <span className="absolute inset-x-0 top-2/3 h-px bg-black/25" />
+    <span className="absolute inset-y-0 left-1/3 w-px bg-black/25" />
+    <span className="absolute inset-y-0 left-2/3 w-px bg-black/25" />
+    <span className="absolute left-1/3 right-1/3 top-1/3 bottom-1/3 rounded-sm border border-black/25" />
   </span>
 );
 
-const CardVisual: React.FC<{ card: VirtualCardData; flipped: boolean; onCopy: () => void; copied: boolean; onTap: () => void }> = ({
-  card,
-  flipped,
-  onCopy,
-  copied,
-  onTap,
-}) => {
-  const face = 'card-face rounded-[22px] p-5 text-white overflow-hidden';
-  const bg = { background: 'radial-gradient(120% 140% at 0% 0%, #3a3a3a 0%, #121212 45%, #000 100%)' };
+/** Symbole sans contact (ondes). */
+const Contactless = () => (
+  <svg viewBox="0 0 24 24" className="w-[7%] h-auto text-white/85" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+    <path d="M8.5 7.5a6.5 6.5 0 0 1 0 9" />
+    <path d="M12 5a10 10 0 0 1 0 14" />
+    <path d="M15.5 2.5a13.5 13.5 0 0 1 0 19" />
+  </svg>
+);
+
+const CardVisual: React.FC<{
+  card: VirtualCardData;
+  flipped: boolean;
+  revealed: boolean;
+  copied: boolean;
+  onFlip: () => void;
+  onCopy: () => void;
+}> = ({ card, flipped, revealed, copied, onFlip, onCopy }) => {
+  const last4 = card.fullNumber.replace(/\s/g, '').slice(-4);
+  const face = 'card-face card-surface rounded-[18px] overflow-hidden text-white select-none';
 
   return (
-    <div className={`card-flip w-full aspect-[1.586] ${flipped ? 'is-flipped' : ''}`}>
-      <div className={`card-flip-inner transition-[filter] ${card.isFrozen ? 'grayscale brightness-[0.6]' : ''}`}>
-        {/* Recto */}
-        <button type="button" onClick={onTap} aria-label="Afficher les informations de la carte" className={`${face} text-left flex flex-col justify-between`} style={bg}>
-          <span className="flex items-start justify-between">
-            <img src="/assets/logo/logo-principal-blanc.svg" alt="Payzed" className="h-6 w-auto" />
-            <Wifi className="w-6 h-6 rotate-90 text-white/80" />
-          </span>
-          <Chip />
-          <span className="flex items-end justify-between gap-3">
-            <span className="min-w-0">
-              <span className="block text-[18px] font-semibold tracking-[0.15em] tabular-nums">•••• {card.fullNumber.replace(/\s/g, '').slice(-4)}</span>
-              <span className="block text-[13px] font-semibold uppercase mt-1 truncate text-white/80">{card.cardholderName}</span>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={flipped ? 'Voir le recto de la carte' : 'Voir le verso de la carte'}
+      onClick={onFlip}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onFlip()}
+      className={`card-flip w-full aspect-[1.586] cursor-pointer [container-type:inline-size] ${flipped ? 'is-flipped' : ''}`}
+    >
+      <div className={`card-flip-inner transition-[filter] ${card.isFrozen ? 'grayscale brightness-[0.55]' : ''}`}>
+        {/* ---------- RECTO ---------- */}
+        <div className={`${face} flex flex-col p-[6.5%]`}>
+          <div className="card-glare" />
+          <div className="flex items-start justify-between">
+            <img src="/assets/logo/logo-principal-blanc.svg" alt="Payzed" className="h-[1.6rem] w-auto" style={{ height: '7.5cqw' }} />
+            <span className="font-bold tracking-[0.18em] text-white/70" style={{ fontSize: '2.9cqw' }}>
+              DEBIT
             </span>
-            <img src="/logos/visa-white.svg" alt="Visa" className="h-12 w-12 -my-3 -mr-1 shrink-0" />
-          </span>
-        </button>
+          </div>
+          <div className="flex items-center gap-[4%] mt-[7%]">
+            <Chip />
+            <Contactless />
+          </div>
+          <p className="emboss mt-auto font-semibold tabular-nums whitespace-nowrap" style={{ fontSize: '6cqw', letterSpacing: '0.1em' }}>
+            {revealed ? maskCardNumber(card.fullNumber, true) : `•••• •••• •••• ${last4}`}
+          </p>
+          <div className="flex items-end justify-between gap-3 mt-[3%]">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="leading-[1.05] text-white/60 font-semibold" style={{ fontSize: '2.2cqw' }}>
+                  VALID
+                  <br />
+                  THRU
+                </span>
+                <span className="emboss font-semibold tabular-nums" style={{ fontSize: '4.4cqw' }}>
+                  {revealed ? `${card.expiryMonth}/${card.expiryYear}` : '••/••'}
+                </span>
+              </div>
+              <p className="emboss font-semibold uppercase truncate mt-[2%]" style={{ fontSize: '4.2cqw', letterSpacing: '0.06em' }}>
+                {card.cardholderName}
+              </p>
+            </div>
+            <img src="/logos/visa-white.svg" alt="Visa" className="shrink-0 -my-[3%]" style={{ width: '19cqw', height: '19cqw' }} />
+          </div>
+        </div>
 
-        {/* Verso */}
-        <div className={`${face} card-face-back flex flex-col`} style={bg} onClick={onTap}>
-          <span className="-mx-5 mt-1 h-10 bg-neutral-800 shrink-0" />
-          <div className="flex-1 flex flex-col justify-center gap-3">
-            <div>
-              <p className="text-[11px] text-white/50">Numéro de carte</p>
-              <p className="text-[clamp(1rem,5.4vw,1.35rem)] font-semibold tracking-[0.08em] tabular-nums whitespace-nowrap">{maskCardNumber(card.fullNumber, true)}</p>
+        {/* ---------- VERSO ---------- */}
+        <div className={`${face} card-face-back flex flex-col`}>
+          <div className="card-glare" />
+          {/* Bande magnétique */}
+          <div
+            className="mt-[6%] h-[18%]"
+            style={{ background: 'linear-gradient(180deg, #3a3a3d 0%, #0b0b0c 18%, #000 50%, #0b0b0c 82%, #3a3a3d 100%)' }}
+          />
+          {/* Panneau de signature + CVV */}
+          <div className="flex items-center gap-[3%] px-[6.5%] mt-[5%]">
+            <div
+              className="flex-1 h-[11cqw] rounded-[2px] flex items-center justify-end pr-[3%]"
+              style={{ background: 'repeating-linear-gradient(135deg, #f4f4f5 0 6px, #e4e4e7 6px 12px)' }}
+            >
+              <span className="text-neutral-700 italic tabular-nums" style={{ fontSize: '3.4cqw' }}>
+                {last4}
+              </span>
             </div>
-            <div className="flex items-end gap-8">
-              <div>
-                <p className="text-[11px] text-white/50">Expire fin</p>
-                <p className="text-[17px] font-semibold tabular-nums">
-                  {card.expiryMonth}/{card.expiryYear}
-                </p>
-              </div>
-              <div>
-                <p className="text-[11px] text-white/50">CVV</p>
-                <p className="text-[17px] font-semibold tabular-nums">{card.cvv}</p>
-              </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCopy();
-                  }}
-                  aria-label="Copier le numéro"
-                  className="ml-auto h-9 px-3 rounded-full bg-white/15 flex items-center gap-1.5 text-[13px] font-semibold shrink-0 active:scale-90 transition-transform"
-                >
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  {copied ? 'Copié' : 'Copier'}
-                </button>
+            <div className="bg-white text-black rounded-[3px] px-[2.5%] h-[11cqw] flex flex-col justify-center items-center min-w-[16%]">
+              <span className="text-neutral-500 font-semibold leading-none" style={{ fontSize: '2.1cqw' }}>
+                CVV
+              </span>
+              <span className="font-bold tabular-nums leading-tight" style={{ fontSize: '4.2cqw' }}>
+                {revealed ? card.cvv : '•••'}
+              </span>
             </div>
+          </div>
+          {/* Hologramme + mentions */}
+          <div className="flex items-end gap-[4%] px-[6.5%] mt-auto mb-[6%]">
+            <div className="flex-1 min-w-0 text-white/60 leading-snug" style={{ fontSize: '2.2cqw' }}>
+              <p>Carte non transférable. Usage soumis aux conditions générales Payzed.</p>
+              <p className="mt-[2%]">Perte ou vol : bloquez immédiatement la carte depuis l'application Payzed.</p>
+              <p className="mt-[2%] flex items-center gap-2 text-white/80 font-semibold tabular-nums">
+                {revealed ? maskCardNumber(card.fullNumber, true) : `•••• ${last4}`}
+                {revealed && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCopy();
+                    }}
+                    aria-label="Copier le numéro de carte"
+                    className="rounded-full bg-white/15 inline-flex items-center gap-1 font-semibold text-white active:scale-95 transition-transform"
+                    style={{ height: '6.4cqw', padding: '0 2.2cqw', fontSize: '2.6cqw' }}
+                  >
+                    {copied ? <Check style={{ width: '2.8cqw', height: '2.8cqw' }} /> : <Copy style={{ width: '2.8cqw', height: '2.8cqw' }} />}
+                    {copied ? 'Copié' : 'Copier'}
+                  </button>
+                )}
+              </p>
+            </div>
+            <div className="hologram shrink-0 rounded-[4px]" style={{ width: '17cqw', height: '12cqw' }} aria-label="Hologramme" />
           </div>
         </div>
       </div>
@@ -101,6 +162,12 @@ const Action: React.FC<{ icon: React.ReactNode; label: string; onClick: () => vo
   </button>
 );
 
+/** Date de remise à zéro du plafond (1er du mois suivant). */
+const nextReset = () => {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+};
+
 /* ---------- Écran ---------- */
 
 export const CardsScreen: React.FC = () => {
@@ -115,16 +182,20 @@ export const CardsScreen: React.FC = () => {
     setSelectedTransaction,
     showToast,
   } = useBanking();
+  const [flipped, setFlipped] = useState(false);
   const [revealUntil, setRevealUntil] = useState<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [copied, setCopied] = useState(false);
   const [sheet, setSheet] = useState<'limit' | 'replace' | null>(null);
 
   const revealed = revealUntil !== null && !card.isFrozen;
-  // Retour Android : masquer d'abord les informations de la carte
-  useBackHandler(() => setRevealUntil(null), revealed);
+  // Retour Android : masquer les infos, puis remettre la carte côté recto
+  useBackHandler(() => {
+    if (revealed) setRevealUntil(null);
+    else setFlipped(false);
+  }, revealed || flipped);
 
-  // Les infos se masquent toutes seules après 30 s
+  // Les informations se masquent toutes seules après 30 s
   useEffect(() => {
     if (revealUntil === null) return;
     const tick = () => {
@@ -162,7 +233,8 @@ export const CardsScreen: React.FC = () => {
       cardTx: all.slice(0, 4),
     };
   }, [transactions]);
-  const usage = card.spendingLimit > 0 ? Math.round((spent / card.spendingLimit) * 100) : 0;
+  const remaining = Math.max(0, card.spendingLimit - spent);
+  const usage = card.spendingLimit > 0 ? (spent / card.spendingLimit) * 100 : 0;
 
   const settings = [
     { label: 'Paiements en ligne', hint: 'Sites et applications', on: card.onlinePaymentsEnabled, toggle: toggleOnlinePayments },
@@ -177,9 +249,9 @@ export const CardsScreen: React.FC = () => {
 
       <div className="space-y-3">
         <div className="relative">
-          <CardVisual card={card} flipped={revealed} onCopy={copy} copied={copied} onTap={toggleReveal} />
+          <CardVisual card={card} flipped={flipped} revealed={revealed} copied={copied} onFlip={() => setFlipped((f) => !f)} onCopy={copy} />
           {card.isFrozen && (
-            <div className="absolute inset-0 rounded-[22px] flex flex-col items-center justify-center gap-2 text-white pointer-events-none">
+            <div className="absolute inset-0 rounded-[18px] flex flex-col items-center justify-center gap-2 text-white pointer-events-none">
               <span className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center">
                 <Lock className="w-6 h-6" />
               </span>
@@ -187,18 +259,22 @@ export const CardsScreen: React.FC = () => {
             </div>
           )}
         </div>
-        <p className="text-center text-[13px] text-neutral-500 min-h-5 leading-5">
-          {revealed
-            ? `Informations masquées dans ${secondsLeft} s`
-            : card.isFrozen
-              ? 'Aucun paiement possible tant que la carte est bloquée'
-              : 'Carte virtuelle Visa · touchez pour voir les infos'}
+        <p className="flex items-center justify-center gap-1.5 text-center text-[13px] text-neutral-500 min-h-5 leading-5">
+          {revealed ? (
+            `Informations visibles encore ${secondsLeft} s`
+          ) : card.isFrozen ? (
+            'Aucun paiement possible tant que la carte est bloquée'
+          ) : (
+            <>
+              <RotateCw className="w-3.5 h-3.5" /> Touchez la carte pour voir le {flipped ? 'recto' : 'verso'}
+            </>
+          )}
         </p>
       </div>
 
       {/* Actions */}
       <div className="grid grid-cols-4">
-        <Action icon={revealed ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />} label={revealed ? 'Masquer' : 'Infos'} onClick={toggleReveal} />
+        <Action icon={revealed ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />} label={revealed ? 'Masquer' : 'Afficher'} onClick={toggleReveal} />
         <Action
           icon={card.isFrozen ? <LockOpen className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
           label={card.isFrozen ? 'Débloquer' : 'Bloquer'}
@@ -215,18 +291,23 @@ export const CardsScreen: React.FC = () => {
 
       {/* Plafond */}
       <section className="space-y-3">
-        <SectionTitle action={<TextLink onClick={() => setSheet('limit')}>Modifier</TextLink>}>Dépenses du mois</SectionTitle>
-        <Card className="p-5">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="text-[26px] font-extrabold tracking-tight">{formatCurrency(spent, 'XOF')}</p>
-            <p className="text-[13px] font-bold">{spent > 0 && usage < 1 ? '< 1' : usage} %</p>
+        <SectionTitle action={<TextLink onClick={() => setSheet('limit')}>Modifier</TextLink>}>Plafond de paiement</SectionTitle>
+        <div className="rounded-3xl bg-neutral-100 p-5">
+          <p className="text-[13px] font-semibold text-neutral-500">Encore disponible ce mois-ci</p>
+          <p className="text-[28px] font-extrabold tracking-tight leading-tight">{formatCurrency(remaining, 'XOF')}</p>
+          <ProgressBar value={usage} className="mt-4 bg-white h-2.5" />
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div>
+              <p className="text-[12px] text-neutral-500">Dépensé</p>
+              <p className="text-[15px] font-bold">{formatCurrency(spent, 'XOF')}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[12px] text-neutral-500">Plafond mensuel</p>
+              <p className="text-[15px] font-bold">{formatCurrency(card.spendingLimit, 'XOF')}</p>
+            </div>
           </div>
-          <ProgressBar value={usage} className="mt-3 bg-white" />
-          <p className="text-[13px] text-neutral-500 mt-2.5">
-            Plafond {formatCurrency(card.spendingLimit, 'XOF')} · reste{' '}
-            <span className="font-bold text-black">{formatCurrency(Math.max(0, card.spendingLimit - spent), 'XOF')}</span>
-          </p>
-        </Card>
+          <p className="text-[12px] text-neutral-500 mt-3">Remise à zéro le {nextReset()}</p>
+        </div>
       </section>
 
       {/* Opérations carte */}
@@ -242,7 +323,7 @@ export const CardsScreen: React.FC = () => {
                 onClick={() => setSelectedTransaction(t)}
                 icon={
                   t.brandLogo ? (
-                    <BrandLogo brand={t.brandLogo} size={44} className="rounded-2xl" />
+                    <BrandLogo brand={t.brandLogo} size={44} />
                   ) : (
                     <IconBox>
                       <CreditCard className="w-5 h-5" />
@@ -274,12 +355,13 @@ export const CardsScreen: React.FC = () => {
         </List>
       </section>
 
-      {sheet === 'limit' && <LimitSheet onClose={() => setSheet(null)} />}
+      {sheet === 'limit' && <LimitSheet spent={spent} onClose={() => setSheet(null)} />}
       {sheet === 'replace' && (
         <ReplaceSheet
           onClose={() => setSheet(null)}
           onDone={() => {
             setRevealUntil(null);
+            setFlipped(false);
             setSheet(null);
           }}
         />
@@ -290,15 +372,16 @@ export const CardsScreen: React.FC = () => {
 
 /* ---------- Plafond ---------- */
 
-const LimitSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const LimitSheet: React.FC<{ spent: number; onClose: () => void }> = ({ spent, onClose }) => {
   const { card, updateSpendingLimit, showToast } = useBanking();
   const [amount, setAmount] = useState(String(card.spendingLimit));
   const value = parseAmount(amount);
   const valid = value >= MIN_LIMIT && value <= MAX_LIMIT;
-  const range = `Entre ${formatCurrency(MIN_LIMIT, 'XOF')} et ${formatCurrency(MAX_LIMIT, 'XOF')}`;
+  const sliderValue = Math.min(MAX_LIMIT, Math.max(MIN_LIMIT, value || MIN_LIMIT));
+  const left = Math.max(0, value - spent);
 
   return (
-    <Sheet title="Plafond mensuel" onClose={onClose}>
+    <Sheet title="Plafond mensuel" onClose={onClose} confirmClose={value !== card.spendingLimit}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -309,8 +392,40 @@ const LimitSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         }}
         className="space-y-5"
       >
-        <AmountField label="Nouveau plafond" value={amount} onChange={setAmount} hint={valid || !value ? range : <span className="text-red-600">{range}</span>} />
-        <Button type="submit" className="w-full" disabled={!valid}>
+        <AmountField
+          label="Nouveau plafond"
+          value={amount}
+          onChange={setAmount}
+          hint={
+            valid ? (
+              `Il vous restera ${formatCurrency(left, 'XOF')} à dépenser ce mois-ci.`
+            ) : (
+              <span className="text-red-600">
+                Entre {formatCurrency(MIN_LIMIT, 'XOF')} et {formatCurrency(MAX_LIMIT, 'XOF')}
+              </span>
+            )
+          }
+        />
+        <div>
+          <input
+            type="range"
+            className="limit-range w-full"
+            min={MIN_LIMIT}
+            max={MAX_LIMIT}
+            step={LIMIT_STEP}
+            value={sliderValue}
+            onChange={(e) => setAmount(e.target.value)}
+            aria-label="Ajuster le plafond"
+          />
+          <div className="flex justify-between text-[12px] text-neutral-500 px-0.5">
+            <span>{groupDigits(String(MIN_LIMIT))}</span>
+            <span>{groupDigits(String(MAX_LIMIT))} FCFA</span>
+          </div>
+        </div>
+        <p className="rounded-2xl bg-neutral-100 px-4 py-3 text-[13px] text-neutral-600">
+          Le plafond limite le total des paiements par carte sur un mois. Il est remis à zéro le 1er de chaque mois.
+        </p>
+        <Button type="submit" className="w-full" disabled={!valid || value === card.spendingLimit}>
           Enregistrer
         </Button>
       </form>

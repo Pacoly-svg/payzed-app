@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronRight, Lock, PiggyBank, Plus } from 'lucide-react';
+import { ChevronRight, Eye, EyeOff, Lock, PiggyBank, Plus } from 'lucide-react';
 import { useBanking } from '../../context/BankingContext';
 import { formatCurrency } from '../../utils/formatters';
 import { AppleEmoji, POPULAR_VAULT_EMOJIS } from '../common/AppleEmoji';
@@ -12,7 +12,7 @@ type View = { name: 'list' } | { name: 'detail'; id: string } | { name: 'create'
 const pct = (v: VaultItem) => (v.targetAmount > 0 ? Math.round((v.currentAmount / v.targetAmount) * 100) : 0);
 
 export const VaultsModal: React.FC = () => {
-  const { setActiveModal, vaults } = useBanking();
+  const { setActiveModal, vaults, isBalanceHidden, toggleHideBalance } = useBanking();
   const [view, setView] = useState<View>({ name: 'list' });
   const close = () => setActiveModal(null);
   const back = () => setView({ name: 'list' });
@@ -28,13 +28,23 @@ export const VaultsModal: React.FC = () => {
   return (
     <Sheet title="Épargne" onClose={close}>
       <div className="space-y-5">
-        <div className="rounded-3xl bg-black text-white p-5">
-          <p className="text-[13px] text-neutral-400 font-medium">Total épargné</p>
-          <p className="text-[30px] font-extrabold tracking-tight mt-0.5">{formatCurrency(total, 'XOF')}</p>
-          <p className="text-[13px] text-neutral-400 mt-0.5">
-            {vaults.length} coffre{vaults.length > 1 ? 's' : ''}
+        {/* Même présentation que le solde de l'accueil */}
+        <section className="rounded-[28px] bg-black text-white p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-neutral-400 font-medium">Total épargné</span>
+            <button
+              type="button"
+              onClick={toggleHideBalance}
+              aria-label={isBalanceHidden ? 'Afficher les montants' : 'Masquer les montants'}
+              className="p-2 -mr-2 rounded-full text-neutral-400 active:bg-white/10"
+            >
+              {isBalanceHidden ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+            </button>
+          </div>
+          <p className="text-[clamp(1.75rem,9vw,2.5rem)] font-extrabold tracking-tight leading-tight break-words">
+            {isBalanceHidden ? '••••••' : formatCurrency(total, 'XOF')}
           </p>
-        </div>
+        </section>
 
         {vaults.length === 0 ? (
           <EmptyState
@@ -62,7 +72,13 @@ export const VaultsModal: React.FC = () => {
                   </span>
                   <ProgressBar value={pct(v)} className="mt-2 bg-white" />
                   <span className="block text-[13px] text-neutral-500 mt-1.5 truncate">
-                    <span className="font-semibold text-black">{groupDigits(String(v.currentAmount))}</span> sur {formatCurrency(v.targetAmount, 'XOF')}
+                    {isBalanceHidden ? (
+                      <>Objectif {formatCurrency(v.targetAmount, 'XOF')}</>
+                    ) : (
+                      <>
+                        <span className="font-semibold text-black">{groupDigits(String(v.currentAmount))}</span> sur {formatCurrency(v.targetAmount, 'XOF')}
+                      </>
+                    )}
                   </span>
                 </span>
                 <ChevronRight className="w-5 h-5 text-neutral-400 shrink-0" />
@@ -82,7 +98,7 @@ export const VaultsModal: React.FC = () => {
 /* ---------- Détail d'un coffre ---------- */
 
 const VaultDetail: React.FC<{ vault: VaultItem; onBack: () => void; onClose: () => void }> = ({ vault, onBack, onClose }) => {
-  const { balance, depositToVault, withdrawFromVault, toggleVaultLock, deleteVault, showToast } = useBanking();
+  const { balance, depositToVault, withdrawFromVault, toggleVaultLock, deleteVault, showToast, isBalanceHidden, toggleHideBalance } = useBanking();
   const [mode, setMode] = useState<'add' | 'take'>('add');
   const [amount, setAmount] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -104,7 +120,17 @@ const VaultDetail: React.FC<{ vault: VaultItem; onBack: () => void; onClose: () 
       <div className="space-y-6">
         <div className="text-center pt-1">
           <AppleEmoji emoji={vault.emoji} size={48} />
-          <p className="mt-3 text-[32px] font-extrabold tracking-tight">{formatCurrency(vault.currentAmount, 'XOF')}</p>
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <p className="text-[32px] font-extrabold tracking-tight">{isBalanceHidden ? '••••••' : formatCurrency(vault.currentAmount, 'XOF')}</p>
+            <button
+              type="button"
+              onClick={toggleHideBalance}
+              aria-label={isBalanceHidden ? 'Afficher le montant' : 'Masquer le montant'}
+              className="p-2 rounded-full text-neutral-400 active:bg-neutral-100"
+            >
+              {isBalanceHidden ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+            </button>
+          </div>
           <p className="text-[15px] text-neutral-500">sur un objectif de {formatCurrency(vault.targetAmount, 'XOF')}</p>
           <ProgressBar value={p} className="mt-4" />
           <div className="flex justify-between text-[13px] mt-2">

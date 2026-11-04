@@ -1,24 +1,19 @@
-import { Capacitor } from '@capacitor/core';
-
 /**
- * Clavier Android : le champ en cours de saisie reste TOUJOURS visible.
+ * Clavier Android : le champ en cours de saisie reste visible, le texte s'affiche en direct.
  *
- * Trois sources d'information sont combinées, car selon la version d'Android,
- * de la WebView et du clavier (Samsung, Gboard…), le comportement diffère :
- *  1. Le plugin natif Capacitor Keyboard → hauteur exacte du clavier (la plus fiable).
- *  2. window.innerHeight → la WebView a-t-elle été réduite par Android ?
- *  3. visualViewport → le clavier est-il posé PAR-DESSUS la page ?
- *
- * Résultat : la variable CSS --kb = hauteur du clavier qui RECOUVRE l'app
- * (0 si Android a déjà réduit la page). L'app et les fenêtres remontent d'autant,
- * la barre du bas est masquée (.kb-open) et le champ actif est recentré.
+ * Fonctionnement (v1.7) : Android redimensionne lui-même la fenêtre quand le clavier
+ * s'ouvre (`adjustResize`, sans mode « bord à bord »). Ce script se contente de :
+ *  - recentrer le champ actif une fois le clavier ouvert (jamais pendant la frappe,
+ *    pour ne pas perturber la saisie prédictive du clavier) ;
+ *  - masquer la barre du bas pendant la saisie (classe .kb-open) ;
+ *  - en secours, si un clavier se pose PAR-DESSUS la page sans la réduire (rare),
+ *    remonter l'app de la hauteur recouverte (variable CSS --kb).
  */
 
 export interface KeyboardDebug {
   innerHeight: number;
   fullHeight: number;
   visualHeight: number;
-  nativeKeyboard: number;
   resizedBy: number;
   lift: number;
   open: boolean;
@@ -35,73 +30,60 @@ export function setupKeyboardHandling() {
   const root = document.documentElement;
   const vv = window.visualViewport;
   let fullHeight = window.innerHeight;
-  let nativeKb = 0; // hauteur donnée par Android (px CSS), 0 = fermé
-  let nativeAvailable = false;
+  let lastLift = -1;
+  let lastOpen: boolean | null = null;
 
   const apply = () => {
     const editing = isEditable(document.activeElement);
-    if (nativeKb === 0 && !editing) fullHeight = Math.max(fullHeight, window.innerHeight);
+    if (!editing) fullHeight = Math.max(fullHeight, window.innerHeight);
 
     const resizedBy = Math.max(0, fullHeight - window.innerHeight);
     const overlay = vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0;
+    const lift = editing && overlay > 80 ? overlay : 0;
+    const open = editing && (resizedBy > 120 || lift > 0);
 
-    let lift = 0;
-    let source = 'none';
-    if (nativeKb > 0) {
-      // Partie du clavier qui recouvre encore la page après un éventuel redimensionnement
-      const covered = nativeKb - resizedBy;
-      lift = covered > nativeKb * 0.35 ? covered : 0;
-      source = lift ? 'native-overlay' : 'native-resized';
-    } else if (!nativeAvailable && overlay > 60) {
-      lift = overlay;
-      source = 'visual-viewport';
-    } else if (resizedBy > 120 && editing) {
-      source = 'resized';
+    // N'écrire dans le DOM que si quelque chose change (aucun travail pendant la frappe)
+    if (lift !== lastLift) {
+      root.style.setProperty('--kb', `${lift}px`);
+      lastLift = lift;
     }
-
-    const open = nativeKb > 0 || lift > 0 || (editing && resizedBy > 120);
-    root.style.setProperty('--kb', `${Math.round(lift)}px`);
-    root.classList.toggle('kb-open', open);
+    if (open !== lastOpen) {
+      root.classList.toggle('kb-open', open);
+      lastOpen = open;
+    }
 
     (window as unknown as { __kb?: KeyboardDebug }).__kb = {
       innerHeight: window.innerHeight,
       fullHeight,
       visualHeight: vv ? Math.round(vv.height) : window.innerHeight,
-      nativeKeyboard: nativeKb,
       resizedBy,
-      lift: Math.round(lift),
+      lift,
       open,
-      source,
+      source: lift ? 'clavier par-dessus' : resizedBy > 120 ? 'fenêtre réduite' : 'fermé',
     };
     window.dispatchEvent(new Event('payzed:kb'));
   };
 
-  /** Recentre le champ actif dans sa zone défilante (plusieurs fois, le clavier s'anime). */
+  /** Recentre le champ actif (après l'animation d'ouverture du clavier). */
   const reveal = () => {
-    [60, 250, 500, 800].forEach((ms) =>
+    [150, 450].forEach((ms) =>
       setTimeout(() => {
         const el = document.activeElement;
         if (!isEditable(el)) return;
         apply();
-        el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: ms < 300 ? 'auto' : 'smooth' });
+        const r = el.getBoundingClientRect();
+        const visible = vv ? vv.height : window.innerHeight;
+        if (r.top < 60 || r.bottom > visible - 16) el.scrollIntoView({ block: 'center', inline: 'nearest' });
       }, ms),
     );
   };
 
   document.addEventListener('focusin', (e) => {
-    if (isEditable(e.target as Element)) reveal();
     apply();
+    if (isEditable(e.target as Element)) reveal();
   });
   document.addEventListener('focusout', () => setTimeout(apply, 150));
-  // Saisie : si le champ a glissé hors de vue (ex. message d'erreur ajouté), on le ramène
-  document.addEventListener('input', (e) => {
-    const el = e.target as HTMLElement;
-    const r = el.getBoundingClientRect?.();
-    const bottomLimit = (vv?.height ?? window.innerHeight) - 8;
-    if (r && (r.bottom > bottomLimit || r.top < 0)) el.scrollIntoView({ block: 'center' });
-  });
   vv?.addEventListener('resize', apply);
-  vv?.addEventListener('scroll', apply);
   window.addEventListener('resize', () => {
     apply();
     if (isEditable(document.activeElement)) reveal();
@@ -110,32 +92,5 @@ export function setupKeyboardHandling() {
     fullHeight = 0;
     setTimeout(apply, 300);
   });
-
-  // Hauteur exacte du clavier fournie par Android (APK uniquement)
-  if (Capacitor.isNativePlatform()) {
-    import('@capacitor/keyboard')
-      .then(({ Keyboard }) => {
-        void Keyboard.addListener('keyboardWillShow', (info) => {
-          nativeAvailable = true;
-          nativeKb = info.keyboardHeight;
-          root.classList.add('kb-open');
-        });
-        void Keyboard.addListener('keyboardDidShow', (info) => {
-          nativeAvailable = true;
-          nativeKb = info.keyboardHeight;
-          apply();
-          reveal();
-        });
-        void Keyboard.addListener('keyboardWillHide', () => {
-          nativeKb = 0;
-        });
-        void Keyboard.addListener('keyboardDidHide', () => {
-          nativeKb = 0;
-          apply();
-        });
-      })
-      .catch(() => undefined);
-  }
-
   apply();
 }

@@ -44,6 +44,7 @@ export interface Category {
 export type LogoSource =
   | 'projet' // fichier officiel fourni dans le projet d'origine
   | 'simple-icons' // bibliothèque Simple Icons (CC0), marques déposées de leurs propriétaires
+  | 'fourni' // fichier officiel fourni par le propriétaire du projet (nov. 2026)
   | 'payzed'; // marque Payzed
 
 export interface Operator {
@@ -92,12 +93,12 @@ export const OPERATORS: Operator[] = [
   { id: 'orange', name: 'Orange', logo: '/logos/orange.svg', source: 'projet' },
   { id: 'yas', name: 'Yas', logo: '/logos/yas.svg', fit: 'contain', source: 'projet' },
   { id: 'expresso', name: 'Expresso', logo: `${T}/expresso.png`, source: 'projet' },
-  { id: 'wizall', name: 'Wizall' },
+  { id: 'wizall', name: 'Wizall', logo: `${T}/wizall.png`, source: 'fourni' },
   // Banques
   { id: 'cbao', name: 'CBAO', logo: `${T}/cbao.png`, source: 'projet' },
   { id: 'ecobank', name: 'Ecobank', logo: `${T}/ecobank.png`, source: 'projet' },
   { id: 'sgsn', name: 'Société Générale Sénégal' },
-  { id: 'uba', name: 'UBA' },
+  { id: 'uba', name: 'UBA', logo: `${T}/uba.png`, source: 'fourni' },
   { id: 'boa', name: 'Bank of Africa' },
   // Transferts internationaux
   { id: 'westernunion', name: 'Western Union', logo: `${T}/westernunion.svg`, source: 'simple-icons' },
@@ -111,8 +112,8 @@ export const OPERATORS: Operator[] = [
   { id: 'dgid', name: 'DGID', logo: `${T}/dgid.png`, source: 'projet' },
   { id: 'axa', name: 'AXA', logo: '/logos/axa.svg', source: 'projet' },
   // TV
-  { id: 'canalplus', name: 'Canal+' },
-  { id: 'startimes', name: 'StarTimes' },
+  { id: 'canalplus', name: 'Canal+', logo: `${T}/canalplus.png`, source: 'fourni' },
+  { id: 'startimes', name: 'StarTimes', logo: `${T}/startimes.png`, source: 'fourni' },
   // Abonnements numériques
   { id: 'netflix', name: 'Netflix', logo: '/logos/netflix_icon.svg', source: 'projet' },
   { id: 'spotify', name: 'Spotify', logo: '/logos/spotify.svg', source: 'projet' },
@@ -127,7 +128,7 @@ export const OPERATORS: Operator[] = [
 export const SERVICES: Service[] = [
   // Mobile Money
   { id: 'wave', operatorId: 'wave', name: 'Wave', category: 'mobile_money' },
-  { id: 'orange_money', operatorId: 'orange', name: 'Orange Money', category: 'mobile_money', aliases: ['orange money', 'om'] },
+  { id: 'orange_money', operatorId: 'orange', name: 'Orange Money', category: 'mobile_money', logo: `${T}/orange-money.png`, aliases: ['orange money', 'om'] },
   { id: 'mixx', operatorId: 'yas', name: 'Mixx by Yas', category: 'mobile_money', aliases: ['mixx', 'free money'] },
   { id: 'wizall', operatorId: 'wizall', name: 'Wizall Money', category: 'mobile_money', aliases: ['wizall'] },
   // Banques
@@ -139,7 +140,7 @@ export const SERVICES: Service[] = [
   // Transferts internationaux
   { id: 'westernunion', operatorId: 'westernunion', name: 'Western Union', category: 'transfers', aliases: ['western union'] },
   { id: 'moneygram', operatorId: 'moneygram', name: 'MoneyGram', category: 'transfers' },
-  { id: 'ria', operatorId: 'ria', name: 'Ria', category: 'transfers', aliases: ['ria money'] },
+  { id: 'ria', operatorId: 'ria', name: 'Ria Money Transfer', category: 'transfers', aliases: ['ria money', 'ria'] },
   { id: 'paypal', operatorId: 'paypal', name: 'PayPal', category: 'transfers' },
   // Crédit téléphone
   { id: 'orange', operatorId: 'orange', name: 'Orange', category: 'telecom' },

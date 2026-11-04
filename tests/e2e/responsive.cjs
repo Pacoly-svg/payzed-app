@@ -48,20 +48,20 @@ const overflowCheck = () => {
       await report(tab);
       if (tab === 'Carte') {
         await p.screenshot({ path: `${S}/card_${w}.png` });
-        await p.getByRole('button', { name: 'Infos' }).tap();
+        await p.getByRole('button', { name: 'Afficher', exact: true }).tap();
         await p.waitForTimeout(800);
         await report('Carte (verso)');
         await p.screenshot({ path: `${S}/cardback_${w}.png` });
-        await p.getByRole('button', { name: 'Masquer' }).tap();
+        await p.locator('.card-flip').tap(); await p.waitForTimeout(800); await report('Carte (verso)'); await p.getByRole('button', { name: 'Masquer', exact: true }).tap();
         await p.waitForTimeout(700);
       }
     }
     await p.getByRole('button', { name: 'Accueil', exact: true }).tap();
-    for (const sheet of ['Envoyer', 'Recevoir', 'Retirer', 'Crédit', 'Factures', 'Épargne', 'Tous les services']) {
-      await p.getByRole('button', { name: sheet, exact: sheet !== 'Envoyer' && sheet !== 'Tous les services' }).first().tap();
+    for (const sheet of ['Envoyer', 'Recevoir', 'Retirer', 'Crédit', 'Paiement', 'Épargne']) {
+      await p.getByRole('button', { name: sheet, exact: sheet !== 'Envoyer' }).first().tap();
       await p.waitForTimeout(450);
       await report(`fenêtre ${sheet}`);
-      if (w === 360 && sheet === 'Tous les services') await p.screenshot({ path: `${S}/services_${w}.png` });
+      if (w === 360 && sheet === 'Paiement') await p.screenshot({ path: `${S}/services_${w}.png` });
       await p.locator('[role=dialog] button[aria-label=Fermer]').last().tap();
       await p.waitForTimeout(250);
     }

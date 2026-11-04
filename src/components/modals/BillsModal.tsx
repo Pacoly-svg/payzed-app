@@ -33,7 +33,7 @@ export const BillsModal: React.FC = () => {
   const [showErrors, setShowErrors] = useState(false);
 
   const chipsRef = useRef<HTMLDivElement>(null);
-  // Amener la catégorie active à l'écran (utile quand on arrive depuis « Tous les services »)
+  // Amener la catégorie active à l'écran (utile quand on arrive depuis « Paiement »)
   useEffect(() => {
     chipsRef.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   }, [cat]);

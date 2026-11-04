@@ -36,7 +36,6 @@ export const KeyboardDebug: React.FC = () => {
       <div>webview {webview}</div>
       <div>inner {info.innerHeight} / full {info.fullHeight}</div>
       <div>visual {info.visualHeight}</div>
-      <div>android kb {info.nativeKeyboard}</div>
       <div>resized {info.resizedBy} · lift {info.lift}</div>
       <div>
         {info.open ? 'OUVERT' : 'fermé'} · {info.source}

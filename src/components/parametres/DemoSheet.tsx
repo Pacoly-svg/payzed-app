@@ -203,7 +203,7 @@ export const DemoSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   ];
 
   return (
-    <Sheet title="SIM · mode test" onClose={onClose} confirmClose={Boolean(name || amount)}>
+    <Sheet title="SIM" onClose={onClose} confirmClose={Boolean(name || amount)}>
       <div className="space-y-8">
         <p className="rounded-2xl bg-neutral-100 px-4 py-3 text-[13px] text-neutral-600">
           Simulations uniquement : aucune somme réelle n'est déplacée. Chaque opération créée ici est marquée « simulée » et peut être effacée.

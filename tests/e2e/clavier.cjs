@@ -22,8 +22,8 @@ const FAKE_VV = `
 const SCREENS = [
   { name: 'Envoyer', open: async (p) => p.getByRole('button', { name: 'Envoyer' }).first().tap(), fields: ['input[placeholder="Nom et prénom"]', 'input[type=tel]', 'input[inputmode=numeric]'] },
   { name: 'Crédit', open: async (p) => p.getByRole('button', { name: 'Crédit', exact: true }).tap(), fields: ['input[type=tel]', 'input[inputmode=numeric]'] },
-  { name: 'Factures', open: async (p) => p.getByRole('button', { name: 'Factures', exact: true }).tap(), fields: ['form input:not([inputmode])', 'input[inputmode=numeric]'] },
-  { name: 'Services', open: async (p) => p.getByRole('button', { name: /Tous les services/ }).tap(), fields: ['input[type=search]'] },
+  { name: 'Factures', open: async (p) => { await p.getByRole('button', { name: 'Paiement', exact: true }).tap(); await p.waitForTimeout(300); await p.locator('[role=dialog] button:has-text("Senelec")').first().tap(); }, fields: ['form input:not([inputmode])', 'input[inputmode=numeric]'] },
+  { name: 'Paiement', open: async (p) => p.getByRole('button', { name: 'Paiement', exact: true }).tap(), fields: ['input[type=search]'] },
   {
     name: 'Nouveau coffre',
     open: async (p) => {
@@ -45,7 +45,7 @@ const SCREENS = [
   {
     name: 'Abonnement (ajout)',
     open: async (p) => {
-      await p.getByRole('button', { name: /Tous les services/ }).tap();
+      await p.getByRole('button', { name: 'Paiement', exact: true }).tap();
       await p.waitForTimeout(300);
       await p.locator('[role=dialog] button:has-text("Netflix")').tap();
     },
@@ -67,7 +67,7 @@ const SCREENS = [
   {
     name: 'SIM',
     tab: 'Profil',
-    open: async (p) => p.getByRole('button', { name: /^SIM/ }).tap(),
+    open: async (p) => p.getByRole('button', { name: /^Simulations/ }).tap(),
     fields: ['input[placeholder="Nom et prénom"]', 'input[type=tel]', 'input[inputmode=numeric] >> nth=0', 'input[aria-label="Durée de traitement"]', 'input[inputmode=numeric] >> nth=1'],
   },
   { name: 'Retrait', open: async (p) => p.getByRole('button', { name: 'Retirer', exact: true }).tap(), fields: ['input[type=tel]', 'input[inputmode=numeric]'] },

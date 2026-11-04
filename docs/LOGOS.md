@@ -1,4 +1,4 @@
-# Inventaire des logos — Payzed 1.6.0
+# Inventaire des logos — Payzed 1.7.0
 
 Source de vérité : `src/data/catalog.ts` (opérateurs → logo, services → opérateur).
 Affichage : composant unique `src/components/common/BrandLogo.tsx` (normalisation automatique).
@@ -22,7 +22,8 @@ Affichage : composant unique `src/components/common/BrandLogo.tsx` (normalisatio
 |---|---|---|---|---|
 | Payzed | Envoi Payzed, retrait agent | `assets/logo/symbole-blanc.svg` | Marque Payzed | ✅ |
 | Wave | Wave (Mobile Money) | `logos/tiles/wave.png` | Projet (`design/logos-source/wave.png`) | ✅ |
-| Orange | Orange Money, crédit Orange, Orange Fibre | `logos/orange.svg` | Projet | ⚠️ Orange Money a un logo propre : à fournir pour remplacer le logo Orange sur ce service |
+| Orange | Crédit Orange, Orange Fibre | `logos/orange.svg` | Projet | ✅ |
+| Orange (Orange Money) | Orange Money | `logos/tiles/orange-money.png` | Fourni par le propriétaire (symbole des flèches isolé, fond blanc) | ✅ |
 | Yas (ex-Free) | Mixx by Yas, crédit Yas, Yas Box | `logos/yas.svg` (« Yasenegal2024 ») | Projet | ⚠️ Mixx by Yas a un logo propre : à fournir |
 | Expresso | Crédit Expresso | `logos/tiles/expresso.png` | Projet (recadré) | ✅ |
 | CBAO (Attijariwafa bank) | Virement CBAO | `logos/tiles/cbao.png` | Projet (symbole isolé) | ✅ |
@@ -44,13 +45,13 @@ Affichage : composant unique `src/components/common/BrandLogo.tsx` (normalisatio
 | Anthropic | Claude | `logos/claude.svg` | Projet | ✅ |
 | Google | Gemini | `logos/gemini.svg` | Projet | ✅ |
 | Visa | Carte | `logos/visa-white.svg` | Simple Icons | ✅ |
-| Wizall | Wizall Money | — | — | ❌ logo officiel à fournir (repère neutre « WM ») |
-| Société Générale Sénégal | Virement | — | — | ❌ logo à fournir ; l'ancien visuel redessiné du projet a été retiré. Identité actuelle de la banque à vérifier |
-| UBA | Virement | — | — | ❌ logo officiel à fournir |
-| Bank of Africa | Virement | — | — | ❌ logo officiel à fournir |
-| Ria | Transfert international | — | — | ❌ logo officiel à fournir |
-| Canal+ | Abonnement TV | — | — | ❌ logo officiel à fournir |
-| StarTimes | Abonnement TV | — | — | ❌ logo officiel à fournir |
+| Wizall | Wizall Money | `logos/tiles/wizall.png` | Fourni par le propriétaire | ✅ |
+| Société Générale Sénégal | Virement | — | — | ⏳ envoyé mais non reçu comme fichier : à renvoyer |
+| UBA | Virement | `logos/tiles/uba.png` | Fourni par le propriétaire (coins arrondis retirés) | ✅ |
+| Bank of Africa | Virement | — | — | ⏳ envoyé mais non reçu comme fichier : à renvoyer |
+| Ria | Transfert international | — | — | ⏳ envoyé par le propriétaire mais non reçu comme fichier : à renvoyer (fond orange carré demandé) |
+| Canal+ | Abonnement TV | `logos/tiles/canalplus.png` | Fourni par le propriétaire | ✅ |
+| StarTimes | Abonnement TV | `logos/tiles/startimes.png` | Fourni par le propriétaire (symbole isolé) | ✅ |
 
 **Pourquoi certains logos manquent :** les sites officiels et Wikimedia ne sont pas accessibles depuis l'environnement de
 développement utilisé ; seuls les fichiers déjà présents dans le projet et la bibliothèque Simple Icons (installée via npm)
